@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs = require('fs');
+const http = require('http');
 const { pathToFileURL } = require('url');
 const { spawn, spawnSync } = require('child_process');
 const { app, BrowserWindow, dialog, ipcMain, shell, clipboard } = require('electron');
@@ -13,6 +14,8 @@ const { clamp01 } = require('./lib/color.cjs');
 let mainWindow;
 let activeProcess = null;
 let updateDownloaded = false;
+let superSplatViewerReady = null;
+let superSplatServerReady = null;
 
 // Force ANGLE/D3D11 on Windows so Electron's Chromium uses the D3D11 backend for WebGL.
 // Without this, the integrated Intel GPU often wins and WebGL fails to create a context.
@@ -1163,6 +1166,99 @@ function loadPlyPreview(filePath, maxPoints = 140000) {
   };
 }
 
+function defaultSuperSplatSettings() {
+  return {
+    version: 2,
+    tonemapping: 'none',
+    highPrecisionRendering: false,
+    background: { color: [0.03, 0.035, 0.045] },
+    postEffectSettings: {
+      sharpness: { enabled: false, amount: 0 },
+      bloom: { enabled: false, intensity: 1, blurLevel: 2 },
+      grading: { enabled: false, brightness: 0, contrast: 1, saturation: 1, tint: [1, 1, 1] },
+      vignette: { enabled: false, intensity: 0.5, inner: 0.3, outer: 0.75, curvature: 1 },
+      fringing: { enabled: false, intensity: 0.5 },
+    },
+    animTracks: [],
+    cameras: [
+      {
+        initial: {
+          position: [0, 1, -1],
+          target: [0, 0, 0],
+          fov: 60,
+        },
+      },
+    ],
+    annotations: [],
+    startMode: 'default',
+  };
+}
+
+async function ensureSuperSplatViewerFiles() {
+  if (superSplatViewerReady) return superSplatViewerReady;
+  superSplatViewerReady = (async () => {
+    const viewerDir = path.join(app.getPath('userData'), 'supersplat-viewer');
+    fs.mkdirSync(viewerDir, { recursive: true });
+    const viewer = await import('@playcanvas/supersplat-viewer');
+    fs.writeFileSync(path.join(viewerDir, 'index.html'), viewer.html);
+    fs.writeFileSync(path.join(viewerDir, 'index.css'), viewer.css);
+    fs.writeFileSync(path.join(viewerDir, 'index.js'), viewer.js);
+    fs.writeFileSync(path.join(viewerDir, 'settings.json'), JSON.stringify(defaultSuperSplatSettings()));
+    return viewerDir;
+  })();
+  return superSplatViewerReady;
+}
+
+function sendStaticFile(response, filePath, contentType) {
+  if (!fs.existsSync(filePath)) {
+    response.writeHead(404);
+    response.end('Not found');
+    return;
+  }
+  response.writeHead(200, {
+    'Content-Type': contentType || 'application/octet-stream',
+    'Cache-Control': 'no-store',
+  });
+  fs.createReadStream(filePath).pipe(response);
+}
+
+async function ensureSuperSplatServer() {
+  if (superSplatServerReady) return superSplatServerReady;
+  superSplatServerReady = (async () => {
+    const viewerDir = await ensureSuperSplatViewerFiles();
+    const server = http.createServer((request, response) => {
+      try {
+        const url = new URL(request.url, 'http://127.0.0.1');
+        if (url.pathname === '/viewer/index.html') return sendStaticFile(response, path.join(viewerDir, 'index.html'), 'text/html; charset=utf-8');
+        if (url.pathname === '/viewer/index.css') return sendStaticFile(response, path.join(viewerDir, 'index.css'), 'text/css; charset=utf-8');
+        if (url.pathname === '/viewer/index.js') return sendStaticFile(response, path.join(viewerDir, 'index.js'), 'text/javascript; charset=utf-8');
+        if (url.pathname === '/settings.json') return sendStaticFile(response, path.join(viewerDir, 'settings.json'), 'application/json; charset=utf-8');
+        if (url.pathname.startsWith('/content/')) {
+          const filePath = url.searchParams.get('path');
+          if (!filePath || !fs.existsSync(filePath)) {
+            response.writeHead(404);
+            response.end('PLY file not found');
+            return;
+          }
+          return sendStaticFile(response, filePath, 'model/ply');
+        }
+        response.writeHead(404);
+        response.end('Not found');
+      } catch (err) {
+        response.writeHead(500);
+        response.end(String(err && err.message ? err.message : err));
+      }
+    });
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(0, '127.0.0.1', resolve);
+    });
+    app.once('before-quit', () => server.close());
+    return { port: server.address().port };
+  })();
+  return superSplatServerReady;
+}
+
 
 ipcMain.handle('check-for-updates', async () => {
   if (!app.isPackaged) {
@@ -1340,6 +1436,18 @@ ipcMain.handle('open-path', async (_event, filePath) => {
 });
 
 ipcMain.handle('load-ply-preview', async (_event, filePath) => loadPlyPreview(filePath));
+ipcMain.handle('prepare-supersplat-preview', async (_event, filePath) => {
+  if (!filePath || !fs.existsSync(filePath)) throw new Error('PLY file does not exist.');
+  const { port } = await ensureSuperSplatServer();
+  const viewerUrl = new URL(`http://127.0.0.1:${port}/viewer/index.html`);
+  const contentPath = `/content/${encodeURIComponent(path.basename(filePath))}?path=${encodeURIComponent(filePath)}`;
+  viewerUrl.searchParams.set('content', contentPath);
+  viewerUrl.searchParams.set('settings', '/settings.json');
+  viewerUrl.searchParams.set('aa', '1');
+  viewerUrl.searchParams.set('budget', '3');
+  viewerUrl.searchParams.set('noui', '1');
+  return { viewerUrl: viewerUrl.href };
+});
 ipcMain.handle('load-ply-preview-as-data-url', async (_event, filePath) => {
   if (!filePath || !fs.existsSync(filePath)) throw new Error('PLY file does not exist.');
   const buffer = fs.readFileSync(filePath);

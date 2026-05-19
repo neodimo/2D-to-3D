@@ -28,7 +28,7 @@ The gate starts with the failures that broke recent releases:
 
 ## Tracked Preview Viewer Follow-up
 
-WebGL splats are visually functioning as of v0.4.23+, but playback is slow. Treat splat render performance as the next preview-viewer stabilization item after the UI/update regressions are closed.
+PLY preview now prefers the official PlayCanvas SuperSplat viewer path, with Babylon/2D preview kept as fallback. Treat regressions in SuperSplat loading, fallback loading, or viewport responsiveness as release blockers.
 
 ## Ownership
 

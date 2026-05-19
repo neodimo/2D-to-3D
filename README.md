@@ -55,6 +55,6 @@ Apple SHARP source is bundled under the app's `resources/ml-sharp` folder. The P
 - SHARP can run prediction on CPU, CUDA, or MPS, but Windows will usually be CPU or CUDA.
 - 360 panorama mode defaults to 4 views and overlap alignment. InfiniDepth and DA360 are optional depth-reference paths; CPU is available as a slow fallback.
 - Rendering preview trajectories from Apple SHARP requires CUDA; this wrapper only runs prediction/export for now.
-- The built-in `.ply` viewer is a lightweight point-cloud preview, not a full Gaussian splat renderer yet.
+- The built-in `.ply` viewer uses the official PlayCanvas SuperSplat viewer path first, with the older Babylon/point preview kept as a fallback.
 - The output `.ply` is Apple SHARP's own 3DGS PLY, not the fallback textured-card approximation.
 - GitHub auto-updates require the published update assets (`latest.yml`, installer, blockmap) to be reachable by the installed app. Do not embed a private GitHub token in the app.

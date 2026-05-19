@@ -49,6 +49,7 @@ const state = {
     lastX: 0,
     lastY: 0,
     useBabylon: false,
+    useSuperSplat: false,
   },
 };
 
@@ -105,6 +106,7 @@ const el = {
   updateStatus: $('updateStatus'),
   appVersion: $('appVersion'),
   stageResizer: $('stageResizer'),
+  superSplatFrame: $('superSplatFrame'),
   plyCanvas: $('plyCanvas'),
   plyCanvas2D: $('plyCanvas2D'),
   viewerPlaceholder: $('viewerPlaceholder'),
@@ -357,6 +359,7 @@ function showOutputPanel(kind) {
   el.resultPanel.classList.remove('hidden');
   el.stageResizer.classList.remove('hidden');
   const isGlb = kind === 'glb';
+  el.superSplatFrame.classList.add('hidden');
   el.plyCanvas.classList.toggle('hidden', isGlb);
   el.plyCanvas2D.classList.add('hidden');
   el.glbCanvas.classList.toggle('hidden', !isGlb);
@@ -814,7 +817,7 @@ document.querySelectorAll('[data-collapsible-panel] .panelMinimize').forEach((bu
     button.setAttribute('aria-label', (minimized ? 'Restore ' : 'Minimize ') + (panel.dataset.panelTitle || 'panel') + ' panel');
     if (!minimized && panel === el.resultPanel) {
       if (state.viewer.useBabylon && babylonEngine) babylonEngine.resize();
-      else drawPlyViewer();
+      else if (!state.viewer.useSuperSplat) drawPlyViewer();
     }
   });
 });
@@ -832,7 +835,7 @@ if (el.stageResizer) {
     const height = Math.max(180, Math.min(rect.height - 220, event.clientY - rect.top));
     centerStage.style.setProperty('--generate-row', height + 'px');
     if (state.viewer.useBabylon && babylonEngine) babylonEngine.resize();
-    else drawPlyViewer();
+    else if (!state.viewer.useSuperSplat) drawPlyViewer();
   });
   el.stageResizer.addEventListener('pointerup', (event) => {
     el.stageResizer.classList.remove('dragging');
@@ -956,8 +959,36 @@ function disposeBabylonViewer() {
   }
 }
 
+function disposeSuperSplatViewer() {
+  state.viewer.useSuperSplat = false;
+  if (el.superSplatFrame) {
+    el.superSplatFrame.removeAttribute('src');
+    el.superSplatFrame.classList.add('hidden');
+  }
+}
+
+async function loadSuperSplatViewer(filePath) {
+  if (!sharpSplat.prepareSuperSplatPreview || !el.superSplatFrame) {
+    throw new Error('SuperSplat viewer bridge is not available.');
+  }
+  disposeBabylonViewer();
+  const preview = await sharpSplat.prepareSuperSplatPreview(filePath);
+  if (!preview || !preview.viewerUrl) throw new Error('SuperSplat viewer URL was not prepared.');
+  el.plyCanvas.classList.add('hidden');
+  el.plyCanvas2D.classList.add('hidden');
+  el.glbCanvas.classList.add('hidden');
+  el.viewerPlaceholder.classList.add('hidden');
+  el.superSplatFrame.classList.remove('hidden');
+  el.superSplatFrame.src = preview.viewerUrl;
+  state.viewer.useBabylon = false;
+  state.viewer.useSuperSplat = true;
+  state.outputPly = filePath;
+  el.viewerInfo.textContent = 'SuperSplat preview loaded · drag rotate · wheel zoom';
+}
+
 function createBabylonViewer(canvas, kind) {
   disposeBabylonViewer();
+  disposeSuperSplatViewer();
   babylonEngine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
   babylonScene = new BABYLON.Scene(babylonEngine);
   babylonScene.clearColor = new BABYLON.Color4(0.06, 0.065, 0.075, 1);
@@ -1099,9 +1130,17 @@ async function loadGlbViewer(filePath) {
 async function loadPlyViewer(filePath = state.outputPly) {
   if (!filePath) return;
   showOutputPanel('ply');
-  el.viewerInfo.textContent = 'Loading Gaussian splat PLY…';
+  el.viewerInfo.textContent = 'Loading SuperSplat preview…';
   let ply = null;
   try {
+    await loadSuperSplatViewer(filePath);
+    return;
+  } catch (superSplatErr) {
+    appendLog('SuperSplat preview failed; retrying Babylon/fallback preview: ' + (superSplatErr.message || superSplatErr));
+    el.viewerInfo.textContent = 'SuperSplat preview failed; loading fallback preview…';
+  }
+  try {
+    disposeSuperSplatViewer();
     if (babylonEngine) { babylonEngine.dispose(); babylonEngine = null; babylonScene = null; }
     ply = await sharpSplat.loadPlyPreview(filePath);
     state.viewer.bounds = ply.bounds;
@@ -1178,7 +1217,7 @@ el.plyCanvas2D.addEventListener('dblclick', () => {
   resetViewerCamera();
 });
 window.addEventListener('resize', () => {
-  if (state.viewer.useBabylon) return;
+  if (state.viewer.useBabylon || state.viewer.useSuperSplat) return;
   drawPlyViewer();
 });
 

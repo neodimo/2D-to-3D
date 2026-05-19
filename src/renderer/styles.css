@@ -110,7 +110,8 @@ li + li { margin-top: 0.35rem; }
 .stageResizer { height: 8px; border-radius: 999px; background: linear-gradient(90deg, transparent, rgba(238, 126, 48, 0.55), transparent); cursor: row-resize; opacity: 0.75; }
 .stageResizer:hover, .stageResizer.dragging { opacity: 1; background: linear-gradient(90deg, transparent, rgba(238, 126, 48, 0.90), transparent); }
 .viewerShell { flex: 1; min-height: 0; border-top: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft); }
-#plyCanvas, #plyCanvas2D, #glbCanvas { width: 100%; height: 100%; display: block; }
+#superSplatFrame, #plyCanvas, #plyCanvas2D, #glbCanvas { width: 100%; height: 100%; display: block; }
+#superSplatFrame { border: 0; background: #080b12; }
 #plyCanvas2D { cursor: grab; }
 #plyCanvas2D:active { cursor: grabbing; }
 .viewerHelp { position: absolute; left: 0.78rem; bottom: 0.72rem; color: rgba(238, 236, 230, 0.70); font-size: 0.74rem; background: rgba(0, 0, 0, 0.45); padding: 0.32rem 0.5rem; border-radius: 999px; pointer-events: none; }

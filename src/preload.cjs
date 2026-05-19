@@ -20,6 +20,7 @@ contextBridge.exposeInMainWorld('sharpSplat', {
   cancelJob: () => ipcRenderer.invoke('cancel-job'),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),
+  prepareSuperSplatPreview: (filePath) => ipcRenderer.invoke('prepare-supersplat-preview', filePath),
   loadPlyPreview: (filePath) => ipcRenderer.invoke('load-ply-preview', filePath),
   loadPlyPreviewAsDataUrl: (filePath) => ipcRenderer.invoke('load-ply-preview-as-data-url', filePath),
   loadPlyBytes: (filePath) => ipcRenderer.invoke('load-ply-bytes', filePath),
