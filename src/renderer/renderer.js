@@ -1279,8 +1279,14 @@ const logLines = [
   'Electron GPU: chrome=' + navigator.userAgent.match(/Chrome\/([\d.]+)/)?.[1] + ' electron=' + process.versions?.electron + ' platform=' + navigator.platform,
   'Renderer WebGL: webgl2=' + webglStatus.webgl2 + ' webgl1=' + webglStatus.webgl1,
   'Renderer GPU: renderer=' + (webglStatus.renderer || 'unknown') + ' vendor=' + (webglStatus.vendor || 'unknown'),
+  'Renderer WebGPU: ' + (navigator.gpu ? 'available' : 'unavailable'),
 ];
 if (webglStatus.error) logLines.push('WebGL probe error: ' + webglStatus.error);
 logLines.forEach((l) => appendLog(l));
+if (sharpSplat.getGpuFeatureStatus) {
+  sharpSplat.getGpuFeatureStatus()
+    .then((status) => appendLog('Electron GPU features: ' + JSON.stringify(status)))
+    .catch((err) => appendLog('Electron GPU features unavailable: ' + (err.message || err)));
+}
 checkRuntime(false);
 drawPlyViewer();

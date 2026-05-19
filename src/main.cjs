@@ -21,11 +21,12 @@ let superSplatServerReady = null;
 // Without this, the integrated Intel GPU often wins and WebGL fails to create a context.
 if (process.platform === 'win32') {
   app.commandLine.appendSwitch('use-gl', 'angle');
-  app.commandLine.appendSwitch('use-angle', 'd3d11,swiftshader');
+  app.commandLine.appendSwitch('use-angle', 'd3d11');
   app.commandLine.appendSwitch('disable-gpu-sandbox');
   // Prevent the GPU process from blacklisting the high-performance discrete GPU.
   app.commandLine.appendSwitch('ignore-gpu-blacklist', 'true');
   app.commandLine.appendSwitch('enable-unsafe-webgpu');
+  app.commandLine.appendSwitch('enable-features', 'Vulkan,UnsafeWebGPU');
   // Disable Viz display compositor which can interfere with WebGL context creation on some systems
   app.commandLine.appendSwitch('disable-features', 'VizDisplayCompositor');
 }
@@ -1289,6 +1290,7 @@ ipcMain.handle('restart-and-install-update', async () => {
 });
 
 ipcMain.handle('get-app-version', async () => app.getVersion());
+ipcMain.handle('get-gpu-feature-status', async () => app.getGPUFeatureStatus());
 
 ipcMain.handle('select-input', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
@@ -1446,6 +1448,7 @@ ipcMain.handle('prepare-supersplat-preview', async (_event, filePath) => {
   viewerUrl.searchParams.set('aa', '1');
   viewerUrl.searchParams.set('budget', '3');
   viewerUrl.searchParams.set('noui', '1');
+  viewerUrl.searchParams.set('webgpu', '1');
   return { viewerUrl: viewerUrl.href };
 });
 ipcMain.handle('load-ply-preview-as-data-url', async (_event, filePath) => {

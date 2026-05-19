@@ -1,6 +1,6 @@
 {
   "name": "2d-to-3d",
-  "version": "0.4.25",
+  "version": "0.4.26",
   "description": "Independent Windows GUI wrapper for Apple SHARP / ml-sharp single-image Gaussian Splat prediction.",
   "main": "src/main.cjs",
   "author": "Omid Ensafi and contributors",
