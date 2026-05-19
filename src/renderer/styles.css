@@ -63,6 +63,13 @@ li + li { margin-top: 0.35rem; }
 .grid { display: grid; gap: 0.7rem; }
 .grid.two { grid-template-columns: 1fr 1fr; }
 .hidden { display: none !important; }
+.hardwarePanel { padding-bottom: 0.95rem; }
+.hardwareGrid { display: grid; grid-template-columns: 1fr; gap: 0.55rem; padding: 0 1rem; }
+.hardwareGrid > div { min-width: 0; padding: 0.68rem 0.72rem; border: 1px solid var(--line-soft); border-radius: 14px; background: #18191b; }
+.hardwareLabel { display: block; color: var(--accent); font-size: 0.66rem; font-weight: 850; text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 0.25rem; }
+.hardwareGrid strong { display: block; color: #f2eee8; font-size: 0.84rem; line-height: 1.25; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hardwareGrid small, .optionHint { display: block; color: var(--muted); font-size: 0.74rem; line-height: 1.32; }
+.optionHint { align-self: end; padding-bottom: 0.08rem; }
 
 .inputCard { display: grid; grid-template-rows: auto minmax(140px, 1fr) auto auto auto auto; gap: 0.65rem; padding-bottom: 1rem; min-height: 0; overflow: hidden; }
 .inputCard label, .inputCard .row { margin-left: 1rem; margin-right: 1rem; }

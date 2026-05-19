@@ -30,6 +30,7 @@ contextBridge.exposeInMainWorld('sharpSplat', {
   restartAndInstallUpdate: () => ipcRenderer.invoke('restart-and-install-update'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   getGpuFeatureStatus: () => ipcRenderer.invoke('get-gpu-feature-status'),
+  getHardwareStatus: () => ipcRenderer.invoke('get-hardware-status'),
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   copyText: (text) => ipcRenderer.invoke('copy-text', text),
   getLastOutputFolder: () => ipcRenderer.invoke('get-last-output-folder'),

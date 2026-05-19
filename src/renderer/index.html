@@ -12,7 +12,7 @@
         <div class="brandMark">S</div>
         <div>
           <p class="eyebrow">Single image → 3D asset</p>
-          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.26</span></h1>
+          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.27</span></h1>
         </div>
       </div>
       <div class="headerActions">
@@ -56,6 +56,31 @@
           <div class="row pathRow">
             <input id="outputFolder" readonly placeholder="Where outputs will be written" />
             <button id="chooseOutputFolder">Folder</button>
+          </div>
+        </article>
+
+        <article class="panel hardwarePanel" data-collapsible-panel data-panel-title="Hardware">
+          <div class="sectionHead">
+            <div>
+              <p class="eyebrow">Hardware</p>
+              <h2>GPU status</h2>
+            </div>
+            <div class="sectionActions">
+              <button id="refreshHardware" class="ghost small" type="button">Refresh</button>
+              <button class="panelMinimize" type="button" aria-label="Minimize Hardware panel" title="Minimize">-</button>
+            </div>
+          </div>
+          <div class="hardwareGrid">
+            <div>
+              <span class="hardwareLabel">Inference</span>
+              <strong id="inferenceGpu">Checking…</strong>
+              <small id="inferenceGpuDetail">SHARP / Pixal3D model execution</small>
+            </div>
+            <div>
+              <span class="hardwareLabel">Viewer</span>
+              <strong id="viewerGpu">Checking…</strong>
+              <small id="viewerGpuDetail">SuperSplat / GLB viewport</small>
+            </div>
           </div>
         </article>
 
@@ -153,7 +178,18 @@
           </section>
 
           <section id="pixalModePanel" class="modePanel hidden">
-            <p>Experimental Pixal3D creates a textured <code>.glb</code>. Windows low-VRAM fallbacks are enabled; quality may vary.</p>
+            <p>Experimental Pixal3D creates a textured <code>.glb</code>. Choose a GPU profile based on available VRAM.</p>
+            <div class="grid two optionGrid">
+              <div>
+                <label>Pixal3D GPU profile</label>
+                <select id="pixalQuality">
+                  <option value="auto">Auto</option>
+                  <option value="full">Full GPU</option>
+                  <option value="compat">Compatibility</option>
+                </select>
+              </div>
+              <div class="optionHint" id="pixalQualityHint">Auto uses Full GPU on high-VRAM CUDA cards and Compatibility on smaller GPUs.</div>
+            </div>
             <div class="notice warning">
               Pixal3D is <strong>academic/research-only</strong>, not for commercial/production use, and not intended for EU use.
             </div>

@@ -89,6 +89,63 @@ function sendUpdateState(state) {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-state', state);
 }
 
+function runProbe(command, args, options = {}) {
+  const result = spawnSync(command, args, { encoding: 'utf8', windowsHide: true, timeout: options.timeout || 5000 });
+  if (result.error || result.status !== 0) return null;
+  return String(result.stdout || '').trim();
+}
+
+function detectNvidiaGpus() {
+  const query = runProbe('nvidia-smi', ['--query-gpu=name,memory.total,driver_version', '--format=csv,noheader,nounits']);
+  if (!query) return [];
+  return query.split(/\r?\n/).map((line) => {
+    const [name, memoryTotalMb, driverVersion] = line.split(',').map((part) => part.trim());
+    return { vendor: 'NVIDIA', name, memoryTotalMb: Number(memoryTotalMb) || null, driverVersion };
+  }).filter((gpu) => gpu.name);
+}
+
+function detectWindowsDisplayGpus() {
+  if (process.platform !== 'win32') return [];
+  const output = runProbe('powershell.exe', [
+    '-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command',
+    'Get-CimInstance Win32_VideoController | Select-Object Name,AdapterRAM,DriverVersion | ConvertTo-Json -Compress'
+  ], { timeout: 8000 });
+  if (!output) return [];
+  try {
+    const parsed = JSON.parse(output);
+    const items = Array.isArray(parsed) ? parsed : [parsed];
+    return items.map((item) => ({
+      vendor: /nvidia/i.test(item.Name || '') ? 'NVIDIA' : (/amd|radeon/i.test(item.Name || '') ? 'AMD' : (/intel/i.test(item.Name || '') ? 'Intel' : 'GPU')),
+      name: item.Name || 'Unknown GPU',
+      memoryTotalMb: item.AdapterRAM ? Math.round(Number(item.AdapterRAM) / 1024 / 1024) : null,
+      driverVersion: item.DriverVersion || '',
+    })).filter((gpu) => gpu.name);
+  } catch (_) {
+    return [];
+  }
+}
+
+function hardwareStatus() {
+  const cudaGpus = detectNvidiaGpus();
+  const displayGpus = detectWindowsDisplayGpus();
+  const inferenceGpu = cudaGpus[0] || null;
+  const viewerGpu = displayGpus.find((gpu) => /nvidia|radeon|amd/i.test(`${gpu.vendor} ${gpu.name}`)) || displayGpus[0] || inferenceGpu || null;
+  return {
+    platform: process.platform,
+    inference: {
+      backend: inferenceGpu ? 'CUDA' : 'CPU',
+      gpu: inferenceGpu,
+      gpus: cudaGpus,
+    },
+    viewer: {
+      backend: 'Electron WebGPU/WebGL',
+      gpu: viewerGpu,
+      gpus: displayGpus,
+      features: app.getGPUFeatureStatus(),
+    },
+  };
+}
+
 function compareVersions(a, b) {
   const pa = String(a || '').split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
   const pb = String(b || '').split(/[.-]/).map((part) => Number.parseInt(part, 10) || 0);
@@ -322,6 +379,8 @@ const PIXAL3D_WINDOWS_INFERENCE_DEPS = [
 ];
 
 function pixal3dExecutionEnv(extra = {}) {
+  const profile = extra.PIXAL3D_PROFILE || process.env.PIXAL3D_PROFILE || 'auto';
+  const lowVram = extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || (profile === 'full' ? '0' : '1');
   return {
     ...extra,
     // Windows has no official flash-attn/NATTEN path here. Use PyTorch SDPA for
@@ -330,8 +389,20 @@ function pixal3dExecutionEnv(extra = {}) {
     SPARSE_ATTN_BACKEND: process.platform === 'win32' ? 'sdpa' : (extra.SPARSE_ATTN_BACKEND || process.env.SPARSE_ATTN_BACKEND || 'flash_attn'),
     HF_HUB_DISABLE_SYMLINKS_WARNING: '1',
     PYTHONUNBUFFERED: '1',
-    PIXAL3D_LOW_VRAM: process.platform === 'win32' ? (extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || '1') : (extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || ''),
+    PIXAL3D_PROFILE: profile,
+    PIXAL3D_LOW_VRAM: process.platform === 'win32' ? lowVram : (extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || ''),
     PIXAL3D_REMBG_MODEL: process.platform === 'win32' ? (extra.PIXAL3D_REMBG_MODEL || process.env.PIXAL3D_REMBG_MODEL || 'briaai/RMBG-1.4') : (extra.PIXAL3D_REMBG_MODEL || process.env.PIXAL3D_REMBG_MODEL || ''),
+  };
+}
+
+function pixal3dProfileEnv(request = {}) {
+  const requested = request.pixalQuality || 'auto';
+  const hw = hardwareStatus();
+  const vramMb = hw.inference.gpu && hw.inference.gpu.memoryTotalMb;
+  const profile = requested === 'full' ? 'full' : (requested === 'compat' ? 'compat' : (vramMb && vramMb >= 16000 ? 'full' : 'compat'));
+  return {
+    PIXAL3D_PROFILE: profile,
+    PIXAL3D_LOW_VRAM: profile === 'full' ? '0' : '1',
   };
 }
 
@@ -1013,10 +1084,18 @@ async function runPixal3D(request = {}) {
   sendJobState({ busy: true, label: 'Running Pixal3D experimental GLB' });
   sendLog('Running Pixal3D as an external experimental provider: image → GLB mesh/material output.');
   sendLog('First Pixal3D run can sit quietly while Hugging Face downloads model weights; watch disk/network activity if the log pauses during model loading.');
-  if (process.platform === 'win32') sendLog(`Using Pixal3D background-removal model: ${pixal3dExecutionEnv().PIXAL3D_REMBG_MODEL}`);
+  const pixalEnv = pixal3dProfileEnv(request);
+  const hw = hardwareStatus();
+  if (hw.inference.gpu) sendLog(`Inference GPU: ${hw.inference.gpu.name}${hw.inference.gpu.memoryTotalMb ? ` (${hw.inference.gpu.memoryTotalMb} MB VRAM)` : ''}`);
+  else sendLog('Inference GPU: no CUDA GPU detected; model inference will use CPU/fallback paths where supported.');
+  if (process.platform === 'win32') {
+    sendLog(`Pixal3D profile: ${pixalEnv.PIXAL3D_PROFILE} (low_vram=${pixalEnv.PIXAL3D_LOW_VRAM})`);
+    sendLog(`Using Pixal3D background-removal model: ${pixal3dExecutionEnv(pixalEnv).PIXAL3D_REMBG_MODEL}`);
+    if (pixalEnv.PIXAL3D_PROFILE === 'full') sendLog('Pixal3D Full GPU mode keeps more models resident on CUDA; use this for higher-VRAM GPUs.');
+  }
   const outputGlb = path.join(request.outputFolder, `${sanitizeStem(request.inputPath)}_pixal3d.glb`);
   const args = ['-u', 'inference.py', '--image', request.inputPath, '--output', outputGlb, '--seed', String(request.seed || 42)];
-  await runProcess(pixal3dPythonPath(), args, { cwd: pixal3dRepoPath(), env: pixal3dExecutionEnv() });
+  await runProcess(pixal3dPythonPath(), args, { cwd: pixal3dRepoPath(), env: pixal3dExecutionEnv(pixalEnv) });
   const newest = fs.existsSync(outputGlb) ? { filePath: outputGlb, size: fs.statSync(outputGlb).size } : findNewestGlb(request.outputFolder);
   if (!newest) throw new Error('Pixal3D finished but no .glb was found in the output folder.');
   sendLog(`GLB written: ${newest.filePath}`);
@@ -1291,6 +1370,7 @@ ipcMain.handle('restart-and-install-update', async () => {
 
 ipcMain.handle('get-app-version', async () => app.getVersion());
 ipcMain.handle('get-gpu-feature-status', async () => app.getGPUFeatureStatus());
+ipcMain.handle('get-hardware-status', async () => hardwareStatus());
 
 ipcMain.handle('select-input', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {

@@ -63,6 +63,11 @@ const el = {
   exposureStops: $('exposureStops'),
   exposureValue: $('exposureValue'),
   device: $('device'),
+  refreshHardware: $('refreshHardware'),
+  inferenceGpu: $('inferenceGpu'),
+  inferenceGpuDetail: $('inferenceGpuDetail'),
+  viewerGpu: $('viewerGpu'),
+  viewerGpuDetail: $('viewerGpuDetail'),
   sharpAdvancedPanel: $('sharpAdvancedPanel'),
   sharpModeButton: $('sharpModeButton'),
   panoramaModeButton: $('panoramaModeButton'),
@@ -91,6 +96,8 @@ const el = {
   copyLogButton: $('copyLogButton'),
   runtimeInfo: $('runtimeInfo'),
   pixalAccept: $('pixalAccept'),
+  pixalQuality: $('pixalQuality'),
+  pixalQualityHint: $('pixalQualityHint'),
   pixalRunButton: $('pixalRunButton'),
   pixalStatus: $('pixalStatus'),
   panoramaSideCount: $('panoramaSideCount'),
@@ -379,6 +386,7 @@ function readOptions() {
     device: el.device.value,
     verbose: true,
     acceptLicense: !!el.pixalAccept.checked,
+    pixalQuality: el.pixalQuality ? el.pixalQuality.value : 'auto',
     panoramaSideCount: el.panoramaSideCount.value,
     panoramaAlignmentMode: el.panoramaAlignmentMode.value,
     panoramaKeepIntermediates: !!el.panoramaKeepIntermediates.checked,
@@ -646,6 +654,49 @@ function updatePanoramaStatusHint() {
   }
 }
 
+function formatGpu(gpu) {
+  if (!gpu || !gpu.name) return 'Not detected';
+  const memory = gpu.memoryTotalMb ? ` · ${Math.round(gpu.memoryTotalMb / 1024)} GB` : '';
+  return `${gpu.name}${memory}`;
+}
+
+function updatePixalQualityHint(hardware) {
+  if (!el.pixalQualityHint || !el.pixalQuality) return;
+  const vram = hardware && hardware.inference && hardware.inference.gpu && hardware.inference.gpu.memoryTotalMb;
+  const autoProfile = vram && vram >= 16000 ? 'Full GPU' : 'Compatibility';
+  if (el.pixalQuality.value === 'full') {
+    el.pixalQualityHint.textContent = 'Keeps more Pixal3D models resident on CUDA. Best for high-VRAM GPUs.';
+  } else if (el.pixalQuality.value === 'compat') {
+    el.pixalQualityHint.textContent = 'Uses lower-VRAM scheduling and Windows-safe fallbacks.';
+  } else {
+    el.pixalQualityHint.textContent = `Auto selects ${autoProfile}${vram ? ` for ${Math.round(vram / 1024)} GB VRAM` : ' when CUDA memory is unknown'}.`;
+  }
+}
+
+async function refreshHardwareStatus() {
+  if (!sharpSplat.getHardwareStatus) return null;
+  try {
+    const hardware = await sharpSplat.getHardwareStatus();
+    const inferenceGpu = hardware && hardware.inference && hardware.inference.gpu;
+    const viewerGpu = hardware && hardware.viewer && hardware.viewer.gpu;
+    el.inferenceGpu.textContent = inferenceGpu ? formatGpu(inferenceGpu) : 'CPU / no CUDA GPU detected';
+    el.inferenceGpuDetail.textContent = inferenceGpu ? 'CUDA available for SHARP/Pixal3D' : 'Model inference may fall back to CPU or fail for CUDA-only providers';
+    el.viewerGpu.textContent = viewerGpu ? formatGpu(viewerGpu) : 'Electron GPU unknown';
+    const features = hardware.viewer && hardware.viewer.features ? hardware.viewer.features : {};
+    el.viewerGpuDetail.textContent = `WebGPU ${navigator.gpu ? 'available' : 'unavailable'} · WebGL ${features.webgl || 'unknown'}`;
+    el.runtimeInfo.textContent = inferenceGpu ? `CUDA: ${inferenceGpu.name}` : 'No CUDA GPU detected';
+    appendLog('Hardware inference: ' + JSON.stringify(hardware.inference));
+    appendLog('Hardware viewer: ' + JSON.stringify(hardware.viewer));
+    updatePixalQualityHint(hardware);
+    return hardware;
+  } catch (err) {
+    appendLog('Hardware check failed: ' + (err.message || err));
+    el.inferenceGpu.textContent = 'Hardware check failed';
+    el.viewerGpu.textContent = 'Hardware check failed';
+    return null;
+  }
+}
+
 async function checkPixal3D(showGood = true) {
   try {
     const status = await sharpSplat.checkPixal3D();
@@ -789,6 +840,8 @@ el.panoramaAlignmentMode.addEventListener('change', updatePanoramaStatusHint);
 el.cancelButton.addEventListener('click', cancelJob);
 el.copyLogButton.addEventListener('click', copyLog);
 el.pixalRunButton.addEventListener('click', runPixal3D);
+el.pixalQuality.addEventListener('change', () => refreshHardwareStatus());
+el.refreshHardware.addEventListener('click', () => refreshHardwareStatus());
 el.updateButton.addEventListener('click', checkForUpdates);
 el.restartUpdateButton.addEventListener('click', restartAndInstallUpdate);
 el.sourceColorSpace.addEventListener('change', refreshInputPreview);
@@ -1288,5 +1341,6 @@ if (sharpSplat.getGpuFeatureStatus) {
     .then((status) => appendLog('Electron GPU features: ' + JSON.stringify(status)))
     .catch((err) => appendLog('Electron GPU features unavailable: ' + (err.message || err)));
 }
+refreshHardwareStatus();
 checkRuntime(false);
 drawPlyViewer();
