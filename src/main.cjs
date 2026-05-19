@@ -381,6 +381,9 @@ const PIXAL3D_WINDOWS_INFERENCE_DEPS = [
 function pixal3dExecutionEnv(extra = {}) {
   const profile = extra.PIXAL3D_PROFILE || process.env.PIXAL3D_PROFILE || 'auto';
   const lowVram = extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || (profile === 'full' ? '0' : '1');
+  const cudaAllocConf = profile === 'aggressive'
+    ? 'expandable_segments:True,max_split_size_mb:256,garbage_collection_threshold:0.8'
+    : (extra.PYTORCH_CUDA_ALLOC_CONF || process.env.PYTORCH_CUDA_ALLOC_CONF || '');
   return {
     ...extra,
     // Windows has no official flash-attn/NATTEN path here. Use PyTorch SDPA for
@@ -389,6 +392,10 @@ function pixal3dExecutionEnv(extra = {}) {
     SPARSE_ATTN_BACKEND: process.platform === 'win32' ? 'sdpa' : (extra.SPARSE_ATTN_BACKEND || process.env.SPARSE_ATTN_BACKEND || 'flash_attn'),
     HF_HUB_DISABLE_SYMLINKS_WARNING: '1',
     PYTHONUNBUFFERED: '1',
+    CUDA_MODULE_LOADING: extra.CUDA_MODULE_LOADING || process.env.CUDA_MODULE_LOADING || 'LAZY',
+    TORCH_ALLOW_TF32_CUBLAS_OVERRIDE: profile === 'aggressive' || profile === 'full' ? '1' : (extra.TORCH_ALLOW_TF32_CUBLAS_OVERRIDE || process.env.TORCH_ALLOW_TF32_CUBLAS_OVERRIDE || ''),
+    NVIDIA_TF32_OVERRIDE: profile === 'aggressive' || profile === 'full' ? '1' : (extra.NVIDIA_TF32_OVERRIDE || process.env.NVIDIA_TF32_OVERRIDE || ''),
+    PYTORCH_CUDA_ALLOC_CONF: cudaAllocConf,
     PIXAL3D_PROFILE: profile,
     PIXAL3D_LOW_VRAM: process.platform === 'win32' ? lowVram : (extra.PIXAL3D_LOW_VRAM || process.env.PIXAL3D_LOW_VRAM || ''),
     PIXAL3D_REMBG_MODEL: process.platform === 'win32' ? (extra.PIXAL3D_REMBG_MODEL || process.env.PIXAL3D_REMBG_MODEL || 'briaai/RMBG-1.4') : (extra.PIXAL3D_REMBG_MODEL || process.env.PIXAL3D_REMBG_MODEL || ''),
@@ -399,7 +406,10 @@ function pixal3dProfileEnv(request = {}) {
   const requested = request.pixalQuality || 'auto';
   const hw = hardwareStatus();
   const vramMb = hw.inference.gpu && hw.inference.gpu.memoryTotalMb;
-  const profile = requested === 'full' ? 'full' : (requested === 'compat' ? 'compat' : (vramMb && vramMb >= 16000 ? 'full' : 'compat'));
+  const profile = requested === 'full' ? 'full'
+    : (requested === 'aggressive' ? 'aggressive'
+      : (requested === 'compat' ? 'compat'
+        : (vramMb && vramMb >= 16000 ? 'full' : (vramMb && vramMb >= 8000 ? 'aggressive' : 'compat'))));
   return {
     PIXAL3D_PROFILE: profile,
     PIXAL3D_LOW_VRAM: profile === 'full' ? '0' : '1',
@@ -1092,6 +1102,7 @@ async function runPixal3D(request = {}) {
     sendLog(`Pixal3D profile: ${pixalEnv.PIXAL3D_PROFILE} (low_vram=${pixalEnv.PIXAL3D_LOW_VRAM})`);
     sendLog(`Using Pixal3D background-removal model: ${pixal3dExecutionEnv(pixalEnv).PIXAL3D_REMBG_MODEL}`);
     if (pixalEnv.PIXAL3D_PROFILE === 'full') sendLog('Pixal3D Full GPU mode keeps more models resident on CUDA; use this for higher-VRAM GPUs.');
+    if (pixalEnv.PIXAL3D_PROFILE === 'aggressive') sendLog('Pixal3D Aggressive Compatibility keeps low-VRAM staging but enables CUDA allocator/TF32 settings for 8-15GB GPUs. Shared GPU memory may still be much slower than dedicated VRAM.');
   }
   const outputGlb = path.join(request.outputFolder, `${sanitizeStem(request.inputPath)}_pixal3d.glb`);
   const args = ['-u', 'inference.py', '--image', request.inputPath, '--output', outputGlb, '--seed', String(request.seed || 42)];

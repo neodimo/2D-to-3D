@@ -663,9 +663,11 @@ function formatGpu(gpu) {
 function updatePixalQualityHint(hardware) {
   if (!el.pixalQualityHint || !el.pixalQuality) return;
   const vram = hardware && hardware.inference && hardware.inference.gpu && hardware.inference.gpu.memoryTotalMb;
-  const autoProfile = vram && vram >= 16000 ? 'Full GPU' : 'Compatibility';
+  const autoProfile = vram && vram >= 16000 ? 'Full GPU' : (vram && vram >= 8000 ? 'Aggressive Compatibility' : 'Compatibility');
   if (el.pixalQuality.value === 'full') {
-    el.pixalQualityHint.textContent = 'Keeps more Pixal3D models resident on CUDA. Best for high-VRAM GPUs.';
+    el.pixalQualityHint.textContent = 'Keeps more Pixal3D models resident on CUDA. Best for 16GB+ dedicated VRAM.';
+  } else if (el.pixalQuality.value === 'aggressive') {
+    el.pixalQualityHint.textContent = 'Uses low-VRAM staging plus CUDA allocator/TF32 tuning. Good test path for 8GB VRAM; shared memory may still stall.';
   } else if (el.pixalQuality.value === 'compat') {
     el.pixalQualityHint.textContent = 'Uses lower-VRAM scheduling and Windows-safe fallbacks.';
   } else {
