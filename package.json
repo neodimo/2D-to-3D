@@ -1,6 +1,6 @@
 {
   "name": "2d-to-3d",
-  "version": "0.4.28",
+  "version": "0.4.29",
   "description": "Independent Windows GUI wrapper for Apple SHARP / ml-sharp single-image Gaussian Splat prediction.",
   "main": "src/main.cjs",
   "author": "Omid Ensafi and contributors",
@@ -10,7 +10,9 @@
     "start": "electron .",
     "smoke": "node scripts/smoke-test.cjs",
     "regression": "node scripts/regression-test.cjs",
-    "qa": "npm run smoke && npm run regression",
+    "test:pixal3d": "node scripts/pixal3d-integration-test.cjs",
+    "test:pixal3d:upstream": "node scripts/pixal3d-integration-test.cjs --upstream",
+    "qa": "npm run smoke && npm run regression && npm run test:pixal3d",
     "gate:release:prebuild": "node scripts/release-gate.cjs prebuild",
     "gate:release:postbuild": "node scripts/release-gate.cjs postbuild",
     "pack:win-folder": "electron-packager . 2D-to-3D --platform=win32 --arch=x64 --out=dist --overwrite --asar --prune=true --extra-resource=vendor/ml-sharp --extra-resource=vendor/uv --extra-resource=scripts/infinidepth_360_bridge.py --ignore='^/dist($|/)' --ignore='^/runtime($|/)' --ignore='^/sharp-runtime($|/)' --ignore='^/test-output($|/)' --ignore='^/vendor/ml-sharp($|/)' --ignore='^/vendor/uv($|/)'",

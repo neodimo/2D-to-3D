@@ -30,3 +30,16 @@ Installed from npm according to package-lock.json. Each dependency remains under
 Runtime downloads
 -----------------
 On first use, the app may download Python packages, PyTorch, gsplat, torchvision, and SHARP/model assets into the user's application data runtime directory. Those downloaded/generated components remain subject to their own upstream licenses and terms and are not covered by this project's MIT license.
+
+TencentARC Pixal3D
+------------------
+The optional image-to-GLB provider downloads TencentARC/Pixal3D source and official model weights at runtime. The integration is pinned to commit:
+
+- cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af
+
+TencentARC currently publishes the Pixal3D source and official weights under the MIT License. The app does not bundle those files. Review and retain the upstream license and notice when redistributing them:
+
+- https://github.com/TencentARC/Pixal3D
+- https://huggingface.co/TencentARC/Pixal3D
+
+Pixal3D's runtime also downloads or links third-party components, including Meta DINOv3, MoGe-2, ZhengPeng7/BiRefNet, NAF, PyTorch, NVIDIA nvdiffrast, CUDA extensions, and rendering libraries. The Windows integration pins ZhengPeng7/BiRefNet to Hugging Face commit e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4. Each component remains under its own upstream terms; in particular, the nvdiffrast terms are limited to non-commercial research and evaluation. The Hugging Face model metadata currently flags EU access as disallowed; that access setting is separate from the MIT license.

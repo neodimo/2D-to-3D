@@ -12,6 +12,9 @@ const css = read('src/renderer/styles.css');
 const renderer = read('src/renderer/renderer.js');
 const preload = read('src/preload.cjs');
 const main = read('src/main.cjs');
+const pixalIntegration = read('src/lib/pixal3d.cjs');
+const pixalDocs = read('EXPERIMENTAL_PIXAL3D.md');
+const notice = read('NOTICE');
 const workflow = read('.github/workflows/windows-release.yml');
 
 const failures = [];
@@ -47,6 +50,16 @@ includesAll('viewer canvas contract', html, [
   'id="plyCanvas2D"',
   'id="glbCanvas"',
 ]);
+includesAll('Pixal3D native option controls', html, [
+  'id="pixalQuality"',
+  'id="pixalResolution"',
+  'id="pixalFovDegrees"',
+  'Standard (~18GB)',
+  'Low VRAM (~10–12GB)',
+  '8GB Experimental',
+]);
+check('obsolete Pixal3D license checkbox removed', !html.includes('id="pixalAccept"'));
+check('obsolete Pixal3D academic-only copy removed', !/academic\/research-only|not for commercial\/production|not intended for EU use/i.test(html));
 
 includesAll('layout style contract', css, [
   '.appVersion',
@@ -63,6 +76,13 @@ includesAll('renderer element map contract', renderer, [
   "plyCanvas2D: $('plyCanvas2D')",
   'sharpSplat.getAppVersion()',
 ]);
+includesAll('renderer Pixal3D options bridge', renderer, [
+  "pixalResolution: $('pixalResolution')",
+  "pixalFovDegrees: $('pixalFovDegrees')",
+  'pixalResolution: el.pixalResolution',
+  'pixalFovDegrees: el.pixalFovDegrees',
+]);
+check('renderer has no obsolete Pixal3D license gate', !renderer.includes('requirePixalLicense') && !renderer.includes('acceptLicense'));
 includesAll('PLY fallback visibility contract', renderer, [
   "el.plyCanvas.classList.add('hidden')",
   "el.plyCanvas2D.classList.remove('hidden')",
@@ -81,12 +101,57 @@ includesAll('silent updater contract', main, [
 ]);
 check('installer UI updater regression stays blocked', !main.includes('autoUpdater.quitAndInstall(false, true)'));
 
+includesAll('Pixal3D pinned integration contract', main, [
+  'PIXAL3D_UPSTREAM_SHA',
+  "['fetch', '--depth', '1', 'origin', PIXAL3D_UPSTREAM_SHA]",
+  "['checkout', '--detach', '--force', PIXAL3D_UPSTREAM_SHA]",
+  'markerData.upstreamSha === PIXAL3D_UPSTREAM_SHA',
+  'markerData.integrationRevision === PIXAL3D_INTEGRATION_REVISION',
+  'hasPixal3DWindowsPatch(repo)',
+  '!markerMatches || !patchValid',
+  'buildPixal3DInferenceArgs(request, outputGlb, profile)',
+]);
+check('main process has no obsolete Pixal3D env-only low-VRAM hook', !main.includes('PIXAL3D_LOW_VRAM'));
+check('main process has no obsolete Pixal3D license gate', !main.includes('acceptLicense') && !/academic-only|not intended for EU use/i.test(main));
+
+includesAll('Pixal3D helper native CLI contract', pixalIntegration, [
+  "const PIXAL3D_UPSTREAM_SHA = 'cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af'",
+  "const PIXAL3D_REMBG_REVISION = 'e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4'",
+  "args.push('--low_vram')",
+  "args.push('--resolution', String(resolution))",
+  "args.push('--fov'",
+  "elif config.ATTN == 'sdpa':",
+  'Windows interpolation fallback',
+  'PIXAL3D_REMBG_MODEL',
+  'PIXAL3D_REMBG_REVISION',
+  'code_revision',
+  'hasPixal3DWindowsPatch',
+]);
+check('obsolete Pixal3D sparse-attention rewrite removed', !pixalIntegration.includes('_sdpa_varlen') && !pixalIntegration.includes('sparseConfig = sparseConfig'));
+check('obsolete arbitrary RMBG output adapter removed', !pixalIntegration.includes('raw_preds = self.model'));
+
+includesAll('Pixal3D current licensing documentation', `${pixalDocs}\n${notice}`, [
+  'MIT',
+  'cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af',
+  'third-party',
+  'Hugging Face model metadata',
+  'ZhengPeng7/BiRefNet',
+  'e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4',
+  'nvdiffrast',
+]);
+check('stale Pixal3D license claims removed from docs', !/academic\/research-only|forbids commercial|not intended for use within the EU/i.test(`${pixalDocs}\n${notice}`));
+
 includesAll('CI release gate contract', workflow, [
+  'actions/setup-python@v5',
+  "python-version: '3.11'",
   'npm run gate:release:prebuild',
+  'npm run test:pixal3d:upstream',
   'npm run gate:release:postbuild',
   'Build Windows installer',
   'Publish GitHub release assets',
+  "if: github.ref_type == 'tag'",
 ]);
+check('QA includes local Pixal3D integration tests', pkg.scripts.qa.includes('test:pixal3d'));
 
 if (failures.length) {
   console.error('Regression gate failed:');

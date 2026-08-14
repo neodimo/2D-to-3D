@@ -95,8 +95,9 @@ const el = {
   liveLog: $('liveLog'),
   copyLogButton: $('copyLogButton'),
   runtimeInfo: $('runtimeInfo'),
-  pixalAccept: $('pixalAccept'),
   pixalQuality: $('pixalQuality'),
+  pixalResolution: $('pixalResolution'),
+  pixalFovDegrees: $('pixalFovDegrees'),
   pixalQualityHint: $('pixalQualityHint'),
   pixalRunButton: $('pixalRunButton'),
   pixalStatus: $('pixalStatus'),
@@ -385,8 +386,9 @@ function readOptions() {
     exposureStops: Number(el.exposureStops.value),
     device: el.device.value,
     verbose: true,
-    acceptLicense: !!el.pixalAccept.checked,
     pixalQuality: el.pixalQuality ? el.pixalQuality.value : 'auto',
+    pixalResolution: el.pixalResolution ? el.pixalResolution.value : 'auto',
+    pixalFovDegrees: el.pixalFovDegrees && el.pixalFovDegrees.value !== '' ? Number(el.pixalFovDegrees.value) : null,
     panoramaSideCount: el.panoramaSideCount.value,
     panoramaAlignmentMode: el.panoramaAlignmentMode.value,
     panoramaKeepIntermediates: !!el.panoramaKeepIntermediates.checked,
@@ -663,13 +665,13 @@ function formatGpu(gpu) {
 function updatePixalQualityHint(hardware) {
   if (!el.pixalQualityHint || !el.pixalQuality) return;
   const vram = hardware && hardware.inference && hardware.inference.gpu && hardware.inference.gpu.memoryTotalMb;
-  const autoProfile = vram && vram >= 16000 ? 'Full GPU' : (vram && vram >= 8000 ? 'Aggressive Compatibility' : 'Compatibility');
+  const autoProfile = vram && vram >= 20000 ? 'Standard' : (vram && vram >= 8000 ? '8GB Experimental' : 'Low VRAM');
   if (el.pixalQuality.value === 'full') {
-    el.pixalQualityHint.textContent = 'Keeps more Pixal3D models resident on CUDA. Best for 16GB+ dedicated VRAM.';
+    el.pixalQualityHint.textContent = 'Standard keeps models resident on CUDA and defaults to 1536. Upstream estimates roughly 18GB peak VRAM.';
   } else if (el.pixalQuality.value === 'aggressive') {
-    el.pixalQualityHint.textContent = 'Uses low-VRAM staging plus CUDA allocator/TF32 tuning. Good test path for 8GB VRAM; shared memory may still stall.';
+    el.pixalQualityHint.textContent = '8GB Experimental uses native low-VRAM staging, 1024 by default, and Windows memory guards. Upstream still documents 10–12GB, so OOM remains possible.';
   } else if (el.pixalQuality.value === 'compat') {
-    el.pixalQualityHint.textContent = 'Uses lower-VRAM scheduling and Windows-safe fallbacks.';
+    el.pixalQualityHint.textContent = 'Low VRAM uses upstream stage-by-stage loading and defaults to 1024. Upstream estimates roughly 10–12GB peak VRAM.';
   } else {
     el.pixalQualityHint.textContent = `Auto selects ${autoProfile}${vram ? ` for ${Math.round(vram / 1024)} GB VRAM` : ' when CUDA memory is unknown'}.`;
   }
@@ -705,8 +707,11 @@ async function checkPixal3D(showGood = true) {
     el.pixalStatus.textContent = status.ready ? `Ready: ${status.repo}` : `Needs install: ${status.root}`;
     appendLog(`Pixal3D root: ${status.root}`);
     appendLog(`Pixal3D repo: ${status.repoExists ? status.repo : 'not cloned yet'}`);
+    appendLog(`Pixal3D source: ${status.currentRevision || 'not installed'} (expected ${status.upstreamSha})`);
+    if (status.repoExists) appendLog(`Pixal3D Windows patch contract: ${status.patchValid ? 'valid' : 'refresh required'}`);
     appendLog(`Pixal3D Python: ${status.pythonExists ? status.python : 'not installed yet'}`);
-    if (showGood) setStatus(status.ready ? 'Pixal3D experimental backend ready.' : 'Pixal3D not installed yet.', status.ready ? 'good' : 'busy');
+    if (status.updateRequired) el.pixalStatus.textContent = 'Pixal3D runtime update required; it will refresh automatically on Run.';
+    if (showGood) setStatus(status.ready ? 'Pixal3D experimental backend ready.' : (status.updateRequired ? 'Pixal3D runtime update required.' : 'Pixal3D not installed yet.'), status.ready ? 'good' : 'busy');
     return status;
   } catch (err) {
     appendError('Pixal3D check failed', err);
@@ -715,16 +720,7 @@ async function checkPixal3D(showGood = true) {
   }
 }
 
-function requirePixalLicense() {
-  if (el.pixalAccept.checked) return true;
-  const msg = 'Check the Pixal3D license box first: academic/research only, no commercial/production use, not intended for EU use.';
-  el.pixalStatus.textContent = msg;
-  setStatus(msg, 'bad');
-  return false;
-}
-
 async function installPixal3D() {
-  if (!requirePixalLicense()) return;
   resetDownloadProgress();
   setBusy(true);
   setStatus('Installing Pixal3D experimental backend… this can be large and CUDA-specific.', 'busy');
@@ -743,7 +739,6 @@ async function installPixal3D() {
 
 async function runPixal3D() {
   resetDownloadProgress();
-  if (!requirePixalLicense()) return;
   if (!state.inputPath) { setStatus('Choose an input frame first.', 'bad'); return; }
   if (!state.outputFolder) { await chooseOutputFolder(); if (!state.outputFolder) return; }
   el.resultActions.classList.add('hidden');
@@ -843,6 +838,7 @@ el.cancelButton.addEventListener('click', cancelJob);
 el.copyLogButton.addEventListener('click', copyLog);
 el.pixalRunButton.addEventListener('click', runPixal3D);
 el.pixalQuality.addEventListener('change', () => refreshHardwareStatus());
+el.pixalResolution.addEventListener('change', () => refreshHardwareStatus());
 el.refreshHardware.addEventListener('click', () => refreshHardwareStatus());
 el.updateButton.addEventListener('click', checkForUpdates);
 el.restartUpdateButton.addEventListener('click', restartAndInstallUpdate);

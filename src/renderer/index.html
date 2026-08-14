@@ -12,7 +12,7 @@
         <div class="brandMark">S</div>
         <div>
           <p class="eyebrow">Single image → 3D asset</p>
-          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.28</span></h1>
+          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.29</span></h1>
         </div>
       </div>
       <div class="headerActions">
@@ -178,23 +178,34 @@
           </section>
 
           <section id="pixalModePanel" class="modePanel hidden">
-            <p>Experimental Pixal3D creates a textured <code>.glb</code>. Choose a GPU profile based on available VRAM.</p>
+            <p>Pixal3D creates a textured <code>.glb</code>. Choose a GPU profile and output resolution based on available dedicated VRAM.</p>
             <div class="grid two optionGrid">
               <div>
                 <label>Pixal3D GPU profile</label>
                 <select id="pixalQuality">
                   <option value="auto">Auto</option>
-                  <option value="full">Full GPU</option>
-                  <option value="aggressive">Aggressive Compatibility</option>
-                  <option value="compat">Compatibility</option>
+                  <option value="full">Standard (~18GB)</option>
+                  <option value="aggressive">8GB Experimental</option>
+                  <option value="compat">Low VRAM (~10–12GB)</option>
                 </select>
               </div>
-              <div class="optionHint" id="pixalQualityHint">Auto uses Full GPU on 16GB+ CUDA cards, Aggressive on 8-15GB, and Compatibility below that.</div>
+              <div>
+                <label>Generation resolution</label>
+                <select id="pixalResolution">
+                  <option value="auto">Auto (profile default)</option>
+                  <option value="1024">1024</option>
+                  <option value="1536">1536</option>
+                </select>
+              </div>
+              <div>
+                <label>Camera FOV in degrees</label>
+                <input id="pixalFovDegrees" type="number" min="0.1" max="179.9" step="0.1" placeholder="Auto (MoGe-2)" />
+              </div>
+              <div class="optionHint" id="pixalQualityHint">Auto selects Standard only around 20GB+; 8GB remains an experimental path below upstream's documented minimum.</div>
             </div>
             <div class="notice warning">
-              Pixal3D is <strong>academic/research-only</strong>, not for commercial/production use, and not intended for EU use.
+              Pixal3D code and official weights are MIT. Runtime dependencies keep their own terms, and the Hugging Face model metadata flags EU access as disallowed. See <code>NOTICE</code>.
             </div>
-            <label class="checkRow"><input id="pixalAccept" type="checkbox" /> I accept the Pixal3D license limits for this local experiment.</label>
             <button id="pixalRunButton" class="primary runPrimary">Run Pixal3D GLB</button>
             <p id="pixalStatus" class="status subtle">Runtime is checked automatically when you run.</p>
           </section>

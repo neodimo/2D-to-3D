@@ -22,11 +22,19 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
       - name: Install dependencies
         run: npm ci
 
       - name: QA regression gate
         run: npm run gate:release:prebuild
+
+      - name: Pixal3D pinned-upstream contract
+        run: npm run test:pixal3d:upstream
 
       - name: Build Windows installer
         run: npm run dist:win
@@ -44,6 +52,7 @@ jobs:
             dist/latest.yml
 
       - name: Publish GitHub release assets
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         shell: pwsh
