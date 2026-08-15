@@ -12,7 +12,7 @@
         <div class="brandMark">S</div>
         <div>
           <p class="eyebrow">Single image → 3D asset</p>
-          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.29</span></h1>
+          <h1>2D to 3D <span id="appVersion" class="appVersion">v0.4.30</span></h1>
         </div>
       </div>
       <div class="headerActions">
@@ -145,6 +145,7 @@
             <button id="sharpModeButton" class="modeTab active" type="button">SHARP .PLY</button>
             <button id="panoramaModeButton" class="modeTab hidden" type="button">360 .PLY</button>
             <button id="pixalModeButton" class="modeTab" type="button">Pixal3D .GLB</button>
+            <button id="sam3dModeButton" class="modeTab" type="button">SAM 3D .GLB</button>
           </div>
 
           <section id="sharpModePanel" class="modePanel">
@@ -208,6 +209,35 @@
             </div>
             <button id="pixalRunButton" class="primary runPrimary">Run Pixal3D GLB</button>
             <p id="pixalStatus" class="status subtle">Runtime is checked automatically when you run.</p>
+          </section>
+
+          <section id="sam3dModePanel" class="modePanel hidden">
+            <p>SAM 3D Objects reconstructs a masked object as a vertex-colored <code>.glb</code>. The app connects to the included bridge running inside an official Linux SAM 3D Objects environment.</p>
+            <div class="grid two optionGrid">
+              <div>
+                <label>Backend URL</label>
+                <input id="sam3dBackendUrl" type="url" value="http://127.0.0.1:7861" spellcheck="false" />
+              </div>
+              <div>
+                <label>Seed</label>
+                <input id="sam3dSeed" type="number" step="1" value="42" />
+              </div>
+            </div>
+            <label class="sam3dMaskLabel">Object mask (optional for transparent PNG)</label>
+            <div class="row pathRow sam3dMaskRow">
+              <input id="sam3dMaskPath" readonly placeholder="White/nonzero pixels mark the object" />
+              <button id="chooseSam3DMask" class="ghost" type="button">Choose mask</button>
+              <button id="clearSam3DMask" class="ghost" type="button">Clear</button>
+            </div>
+            <div class="notice warning">
+              Official requirements: Linux x64 and an NVIDIA GPU with at least 32GB VRAM. Meta provides no low-memory mode. Windows should connect to WSL2 or a remote Linux GPU. Checkpoint access requires Hugging Face approval/authentication.
+            </div>
+            <div class="buttonRow">
+              <button id="sam3dGuideButton" class="ghost" type="button">Open setup guide</button>
+              <button id="sam3dCheckButton" class="ghost" type="button">Check backend</button>
+              <button id="sam3dRunButton" class="primary runPrimary" type="button">Run SAM 3D Objects</button>
+            </div>
+            <p id="sam3dStatus" class="status subtle">Start the included bridge, then check or run.</p>
           </section>
 
           <div class="statusStrip">

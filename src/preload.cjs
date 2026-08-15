@@ -4,6 +4,8 @@ const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('sharpSplat', {
   selectInput: () => ipcRenderer.invoke('select-input'),
+  selectSam3DMask: () => ipcRenderer.invoke('select-sam3d-mask'),
+  openSam3DGuide: () => ipcRenderer.invoke('open-sam3d-guide'),
   selectOutputFolder: () => ipcRenderer.invoke('select-output-folder'),
   inspectInput: (inputPath, opts) => ipcRenderer.invoke('inspect-input', inputPath, opts),
   checkRuntime: () => ipcRenderer.invoke('check-runtime'),
@@ -17,6 +19,8 @@ contextBridge.exposeInMainWorld('sharpSplat', {
   checkPixal3D: () => ipcRenderer.invoke('check-pixal3d'),
   installPixal3D: (request) => ipcRenderer.invoke('install-pixal3d', request),
   runPixal3D: (request) => ipcRenderer.invoke('run-pixal3d', request),
+  checkSam3D: (request) => ipcRenderer.invoke('check-sam3d', request),
+  runSam3D: (request) => ipcRenderer.invoke('run-sam3d', request),
   cancelJob: () => ipcRenderer.invoke('cancel-job'),
   showInFolder: (filePath) => ipcRenderer.invoke('show-in-folder', filePath),
   openPath: (filePath) => ipcRenderer.invoke('open-path', filePath),

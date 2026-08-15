@@ -24,9 +24,20 @@ const {
   hasPixal3DWindowsPatch,
   patchPixal3DWindowsSource: applyPixal3DWindowsPatch,
 } = require('./lib/pixal3d.cjs');
+const {
+  SAM3D_REPO_URL,
+  SAM3D_UPSTREAM_SHA,
+  SAM3D_DEFAULT_BACKEND_URL,
+  SAM3D_MIN_VRAM_GB,
+  SAM3D_LICENSE_SUMMARY,
+  normalizeSam3DBackendUrl,
+  sam3dEndpoint,
+  sam3dOutputPath,
+} = require('./lib/sam3d.cjs');
 
 let mainWindow;
 let activeProcess = null;
+let activeAbortController = null;
 let updateDownloaded = false;
 let superSplatViewerReady = null;
 let superSplatServerReady = null;
@@ -186,6 +197,21 @@ function appRoot() {
 
 function resourcesRoot() {
   return app.isPackaged ? process.resourcesPath : path.resolve(__dirname, '..', 'vendor');
+}
+
+function sam3dBridgeScriptPath() {
+  if (!app.isPackaged) return path.resolve(__dirname, '..', 'scripts', 'sam3d_objects_server.py');
+  const candidates = [
+    path.join(process.resourcesPath, 'scripts', 'sam3d_objects_server.py'),
+    path.join(process.resourcesPath, 'sam3d_objects_server.py'),
+  ];
+  return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[0];
+}
+
+function sam3dGuidePath() {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'SAM3D_OBJECTS.md')
+    : path.resolve(__dirname, '..', 'SAM3D_OBJECTS.md');
 }
 
 function runtimeRoot() {
@@ -1048,6 +1074,133 @@ async function runPixal3D(request = {}) {
   return { outputGlb: newest.filePath, sizeBytes: newest.size, provider: 'pixal3d-experimental' };
 }
 
+function mimeTypeForImage(filePath) {
+  const ext = path.extname(filePath || '').toLowerCase();
+  if (ext === '.png') return 'image/png';
+  if (ext === '.jpg' || ext === '.jpeg') return 'image/jpeg';
+  if (ext === '.exr') return 'image/x-exr';
+  return 'application/octet-stream';
+}
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const { signal: externalSignal, ...fetchOptions } = options;
+  const abortFromExternal = () => controller.abort();
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort();
+    else externalSignal.addEventListener('abort', abortFromExternal, { once: true });
+  }
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...fetchOptions, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+    if (externalSignal) externalSignal.removeEventListener('abort', abortFromExternal);
+  }
+}
+
+async function readBackendError(response) {
+  const text = await response.text();
+  if (!text) return `${response.status} ${response.statusText}`;
+  try {
+    const parsed = JSON.parse(text);
+    return parsed.detail || parsed.message || text;
+  } catch (_) {
+    return text.slice(0, 2000);
+  }
+}
+
+async function checkSam3DStatus(request = {}) {
+  const backendUrl = normalizeSam3DBackendUrl(request.sam3dBackendUrl || SAM3D_DEFAULT_BACKEND_URL);
+  const base = {
+    backendUrl,
+    bridgeScript: sam3dBridgeScriptPath(),
+    bridgeScriptExists: fs.existsSync(sam3dBridgeScriptPath()),
+    upstreamRepo: SAM3D_REPO_URL,
+    upstreamSha: SAM3D_UPSTREAM_SHA,
+    minimumVramGb: SAM3D_MIN_VRAM_GB,
+    lowVramMode: false,
+    platformRequirement: 'Linux x64',
+    license: SAM3D_LICENSE_SUMMARY,
+  };
+  try {
+    const response = await fetchWithTimeout(sam3dEndpoint(backendUrl, 'health'), {}, 5000);
+    if (!response.ok) return { ...base, ready: false, error: await readBackendError(response) };
+    const health = await response.json();
+    return {
+      ...base,
+      ready: health.ok === true,
+      health,
+      upstreamMatches: !health.upstream || health.upstream === SAM3D_UPSTREAM_SHA,
+    };
+  } catch (err) {
+    const message = err && err.name === 'AbortError'
+      ? `Timed out connecting to ${backendUrl}`
+      : (err.message || String(err));
+    return { ...base, ready: false, error: message };
+  }
+}
+
+async function runSam3D(request = {}) {
+  if (!request.inputPath || !fs.existsSync(request.inputPath)) throw new Error('Input file does not exist.');
+  if (!request.outputFolder) throw new Error('Choose an output folder first.');
+  if (request.sam3dMaskPath && !fs.existsSync(request.sam3dMaskPath)) throw new Error('SAM 3D Objects mask file does not exist.');
+
+  const backendUrl = normalizeSam3DBackendUrl(request.sam3dBackendUrl || SAM3D_DEFAULT_BACKEND_URL);
+  const status = await checkSam3DStatus({ sam3dBackendUrl: backendUrl });
+  if (!status.ready) {
+    throw new Error(
+      `SAM 3D Objects backend is unavailable at ${backendUrl}: ${status.error || 'health check failed'}. `
+      + `Official inference requires Linux x64 and at least ${SAM3D_MIN_VRAM_GB}GB VRAM; there is no upstream low-memory mode.`
+    );
+  }
+
+  fs.mkdirSync(request.outputFolder, { recursive: true });
+  sendJobState({ busy: true, label: 'Running SAM 3D Objects GLB' });
+  sendLog(`SAM 3D Objects backend: ${backendUrl}`);
+  sendLog(`Official source pin: ${SAM3D_UPSTREAM_SHA}`);
+  sendLog(`Official hardware requirement: Linux x64, NVIDIA GPU with at least ${SAM3D_MIN_VRAM_GB}GB VRAM; no low-memory fallback is provided upstream.`);
+  sendLog(SAM3D_LICENSE_SUMMARY);
+  if (status.health && status.health.gpu) {
+    sendLog(`Backend GPU: ${status.health.gpu}${status.health.vram_gb ? ` (${status.health.vram_gb}GB VRAM)` : ''}`);
+  }
+
+  const prepared = await prepareInferenceInput(request.inputPath, request);
+  const form = new FormData();
+  form.append('image', new Blob([fs.readFileSync(prepared.inferencePath)], { type: mimeTypeForImage(prepared.inferencePath) }), path.basename(prepared.inferencePath));
+  if (request.sam3dMaskPath) {
+    form.append('mask', new Blob([fs.readFileSync(request.sam3dMaskPath)], { type: mimeTypeForImage(request.sam3dMaskPath) }), path.basename(request.sam3dMaskPath));
+  }
+  form.append('seed', String(Number.isInteger(request.sam3dSeed) ? request.sam3dSeed : 42));
+
+  const jobController = new AbortController();
+  activeAbortController = jobController;
+  let response;
+  try {
+    response = await fetchWithTimeout(sam3dEndpoint(backendUrl, 'generate'), {
+      method: 'POST',
+      body: form,
+      signal: jobController.signal,
+    }, 30 * 60 * 1000);
+  } finally {
+    if (activeAbortController === jobController) activeAbortController = null;
+  }
+  if (!response.ok) throw new Error(`SAM 3D Objects backend failed: ${await readBackendError(response)}`);
+
+  const outputGlb = sam3dOutputPath(request.outputFolder, request.inputPath);
+  const tempGlb = `${outputGlb}.partial`;
+  fs.writeFileSync(tempGlb, Buffer.from(await response.arrayBuffer()));
+  if (fs.statSync(tempGlb).size === 0) {
+    fs.rmSync(tempGlb, { force: true });
+    throw new Error('SAM 3D Objects backend returned an empty GLB.');
+  }
+  fs.renameSync(tempGlb, outputGlb);
+  const sizeBytes = fs.statSync(outputGlb).size;
+  sendLog(`SAM 3D Objects GLB written: ${outputGlb}`);
+  sendJobState({ busy: false, label: 'SAM 3D Objects complete' });
+  return { outputGlb, sizeBytes, provider: 'sam-3d-objects', backendUrl };
+}
+
 function sigmoid(v) {
   if (!Number.isFinite(v)) return 0.5;
   return 1 / (1 + Math.exp(-v));
@@ -1334,6 +1487,31 @@ ipcMain.handle('select-input', async () => {
   return { inputPath, defaultColorSpace: defaultColorSpaceFor(inputPath) };
 });
 
+ipcMain.handle('select-sam3d-mask', async () => {
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Choose a SAM 3D Objects mask',
+    properties: ['openFile'],
+    filters: [
+      { name: 'Mask images', extensions: ['png', 'jpg', 'jpeg'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  });
+  if (result.canceled || !result.filePaths[0]) return null;
+  const maskPath = result.filePaths[0];
+  if (!['.png', '.jpg', '.jpeg'].includes(path.extname(maskPath).toLowerCase())) {
+    throw new Error('Use a PNG or JPEG mask. White/nonzero pixels mark the object.');
+  }
+  return maskPath;
+});
+
+ipcMain.handle('open-sam3d-guide', async () => {
+  const guide = sam3dGuidePath();
+  if (!fs.existsSync(guide)) throw new Error(`SAM 3D Objects setup guide is missing: ${guide}`);
+  const error = await shell.openPath(guide);
+  if (error) throw new Error(error);
+  return true;
+});
+
 ipcMain.handle('select-output-folder', async () => {
   const result = await dialog.showOpenDialog(mainWindow, {
     title: 'Choose SHARP output folder',
@@ -1402,6 +1580,15 @@ ipcMain.handle('run-pixal3d', async (_event, request) => {
     throw err;
   }
 });
+ipcMain.handle('check-sam3d', async (_event, request) => checkSam3DStatus(request || {}));
+ipcMain.handle('run-sam3d', async (_event, request) => {
+  try {
+    return await runSam3D(request || {});
+  } catch (err) {
+    sendJobState({ busy: false, label: 'SAM 3D Objects failed' });
+    throw err;
+  }
+});
 
 ipcMain.handle('install-runtime', async () => {
   try {
@@ -1440,6 +1627,10 @@ ipcMain.handle('run-sharp', async (_event, request) => {
 });
 
 ipcMain.handle('cancel-job', async () => {
+  if (activeAbortController) {
+    activeAbortController.abort();
+    activeAbortController = null;
+  }
   if (activeProcess) {
     activeProcess.kill();
     activeProcess = null;

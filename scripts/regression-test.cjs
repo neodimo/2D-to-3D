@@ -14,6 +14,9 @@ const preload = read('src/preload.cjs');
 const main = read('src/main.cjs');
 const pixalIntegration = read('src/lib/pixal3d.cjs');
 const pixalDocs = read('EXPERIMENTAL_PIXAL3D.md');
+const sam3dIntegration = read('src/lib/sam3d.cjs');
+const sam3dBridge = read('scripts/sam3d_objects_server.py');
+const sam3dDocs = read('SAM3D_OBJECTS.md');
 const notice = read('NOTICE');
 const workflow = read('.github/workflows/windows-release.yml');
 
@@ -58,6 +61,15 @@ includesAll('Pixal3D native option controls', html, [
   'Low VRAM (~10–12GB)',
   '8GB Experimental',
 ]);
+includesAll('SAM 3D Objects option controls', html, [
+  'id="sam3dModeButton"',
+  'id="sam3dBackendUrl"',
+  'id="sam3dMaskPath"',
+  'id="sam3dCheckButton"',
+  'id="sam3dRunButton"',
+  'at least 32GB VRAM',
+  'no low-memory mode',
+]);
 check('obsolete Pixal3D license checkbox removed', !html.includes('id="pixalAccept"'));
 check('obsolete Pixal3D academic-only copy removed', !/academic\/research-only|not for commercial\/production|not intended for EU use/i.test(html));
 
@@ -82,6 +94,13 @@ includesAll('renderer Pixal3D options bridge', renderer, [
   'pixalResolution: el.pixalResolution',
   'pixalFovDegrees: el.pixalFovDegrees',
 ]);
+includesAll('renderer SAM 3D Objects bridge', renderer, [
+  "sam3dModeButton: $('sam3dModeButton')",
+  "sam3dBackendUrl: $('sam3dBackendUrl')",
+  'sharpSplat.checkSam3D(readOptions())',
+  'sharpSplat.runSam3D(readOptions())',
+  "setMode('sam3d')",
+]);
 check('renderer has no obsolete Pixal3D license gate', !renderer.includes('requirePixalLicense') && !renderer.includes('acceptLicense'));
 includesAll('PLY fallback visibility contract', renderer, [
   "el.plyCanvas.classList.add('hidden')",
@@ -94,6 +113,11 @@ check('PLY fallback avoids requiring both canvases visible for keyboard handling
 includesAll('preload app version bridge', preload, [
   'getAppVersion',
   "ipcRenderer.invoke('get-app-version')",
+]);
+includesAll('preload SAM 3D Objects bridge', preload, [
+  'selectSam3DMask',
+  'checkSam3D',
+  'runSam3D',
 ]);
 includesAll('silent updater contract', main, [
   "ipcMain.handle('get-app-version'",
@@ -113,6 +137,27 @@ includesAll('Pixal3D pinned integration contract', main, [
 ]);
 check('main process has no obsolete Pixal3D env-only low-VRAM hook', !main.includes('PIXAL3D_LOW_VRAM'));
 check('main process has no obsolete Pixal3D license gate', !main.includes('acceptLicense') && !/academic-only|not intended for EU use/i.test(main));
+
+includesAll('SAM 3D Objects main-process provider contract', main, [
+  'SAM3D_UPSTREAM_SHA',
+  'SAM3D_MIN_VRAM_GB',
+  'checkSam3DStatus',
+  'runSam3D',
+  "sam3dEndpoint(backendUrl, 'health')",
+  "sam3dEndpoint(backendUrl, 'generate')",
+  "ipcMain.handle('run-sam3d'",
+  'there is no upstream low-memory mode',
+]);
+
+includesAll('SAM 3D Objects helper and bridge contract', `${sam3dIntegration}\n${sam3dBridge}\n${sam3dDocs}`, [
+  'f91db411c50efee93d8db7aeb323885650f6f722',
+  'http://127.0.0.1:7861',
+  'SAM3D_MIN_VRAM_GB = 32',
+  '@APP.get("/health")',
+  '@APP.post("/generate")',
+  'output.get("glb")',
+  'no low-memory',
+]);
 
 includesAll('Pixal3D helper native CLI contract', pixalIntegration, [
   "const PIXAL3D_UPSTREAM_SHA = 'cdbb2bbffbf4e6f298b5f2af3d1d76a8d823d2af'",
@@ -152,6 +197,7 @@ includesAll('CI release gate contract', workflow, [
   "if: github.ref_type == 'tag'",
 ]);
 check('QA includes local Pixal3D integration tests', pkg.scripts.qa.includes('test:pixal3d'));
+check('QA includes SAM 3D Objects integration tests', pkg.scripts.qa.includes('test:sam3d'));
 
 if (failures.length) {
   console.error('Regression gate failed:');

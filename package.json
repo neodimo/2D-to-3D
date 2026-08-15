@@ -1,6 +1,6 @@
 {
   "name": "2d-to-3d",
-  "version": "0.4.29",
+  "version": "0.4.30",
   "description": "Independent Windows GUI wrapper for Apple SHARP / ml-sharp single-image Gaussian Splat prediction.",
   "main": "src/main.cjs",
   "author": "Omid Ensafi and contributors",
@@ -12,10 +12,11 @@
     "regression": "node scripts/regression-test.cjs",
     "test:pixal3d": "node scripts/pixal3d-integration-test.cjs",
     "test:pixal3d:upstream": "node scripts/pixal3d-integration-test.cjs --upstream",
-    "qa": "npm run smoke && npm run regression && npm run test:pixal3d",
+    "test:sam3d": "node scripts/sam3d-integration-test.cjs",
+    "qa": "npm run smoke && npm run regression && npm run test:pixal3d && npm run test:sam3d",
     "gate:release:prebuild": "node scripts/release-gate.cjs prebuild",
     "gate:release:postbuild": "node scripts/release-gate.cjs postbuild",
-    "pack:win-folder": "electron-packager . 2D-to-3D --platform=win32 --arch=x64 --out=dist --overwrite --asar --prune=true --extra-resource=vendor/ml-sharp --extra-resource=vendor/uv --extra-resource=scripts/infinidepth_360_bridge.py --ignore='^/dist($|/)' --ignore='^/runtime($|/)' --ignore='^/sharp-runtime($|/)' --ignore='^/test-output($|/)' --ignore='^/vendor/ml-sharp($|/)' --ignore='^/vendor/uv($|/)'",
+    "pack:win-folder": "electron-packager . 2D-to-3D --platform=win32 --arch=x64 --out=dist --overwrite --asar --prune=true --extra-resource=vendor/ml-sharp --extra-resource=vendor/uv --extra-resource=scripts/infinidepth_360_bridge.py --extra-resource=scripts/sam3d_objects_server.py --extra-resource=SAM3D_OBJECTS.md --ignore='^/dist($|/)' --ignore='^/runtime($|/)' --ignore='^/sharp-runtime($|/)' --ignore='^/test-output($|/)' --ignore='^/vendor/ml-sharp($|/)' --ignore='^/vendor/uv($|/)'",
     "dist:win": "electron-builder --win nsis --x64 --publish never",
     "dist:win:publish": "electron-builder --win nsis --x64 --publish always"
   },
@@ -43,9 +44,11 @@
     "files": [
       "src/**/*",
       "scripts/infinidepth_360_bridge.py",
+      "scripts/sam3d_objects_server.py",
       "package.json",
       "LICENSE",
       "NOTICE",
+      "SAM3D_OBJECTS.md",
       "node_modules/**/*"
     ],
     "extraResources": [
@@ -60,6 +63,14 @@
       {
         "from": "scripts/infinidepth_360_bridge.py",
         "to": "scripts/infinidepth_360_bridge.py"
+      },
+      {
+        "from": "scripts/sam3d_objects_server.py",
+        "to": "scripts/sam3d_objects_server.py"
+      },
+      {
+        "from": "SAM3D_OBJECTS.md",
+        "to": "SAM3D_OBJECTS.md"
       }
     ],
     "win": {

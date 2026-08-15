@@ -43,3 +43,16 @@ TencentARC currently publishes the Pixal3D source and official weights under the
 - https://huggingface.co/TencentARC/Pixal3D
 
 Pixal3D's runtime also downloads or links third-party components, including Meta DINOv3, MoGe-2, ZhengPeng7/BiRefNet, NAF, PyTorch, NVIDIA nvdiffrast, CUDA extensions, and rendering libraries. The Windows integration pins ZhengPeng7/BiRefNet to Hugging Face commit e2bf8e4460fc8fa32bba5ea4d94b3233d367b0e4. Each component remains under its own upstream terms; in particular, the nvdiffrast terms are limited to non-commercial research and evaluation. The Hugging Face model metadata currently flags EU access as disallowed; that access setting is separate from the MIT license.
+
+Meta SAM 3D Objects
+-------------------
+The optional SAM 3D Objects provider connects to a separately installed official Linux backend. The app does not bundle Meta's source, model, or checkpoints. The bridge contract is validated against commit:
+
+- f91db411c50efee93d8db7aeb323885650f6f722
+
+SAM 3D Objects code and checkpoints are governed by Meta's SAM License. Checkpoint access requires Hugging Face approval and authentication. Review the upstream license, trade-control restrictions, and notices before use or redistribution:
+
+- https://github.com/facebookresearch/sam-3d-objects
+- https://huggingface.co/facebook/sam-3d-objects
+
+The included HTTP bridge uses the official notebook inference path with vertex-color GLB export and leaves texture baking disabled. A separately enabled texture-baking path may introduce additional non-commercial dependency terms.

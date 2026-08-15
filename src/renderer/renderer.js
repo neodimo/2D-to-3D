@@ -30,6 +30,7 @@ const state = {
   outputFolder: '',
   outputPly: '',
   outputFile: '',
+  sam3dMaskPath: '',
   busy: false,
   activeMode: 'sharp',
   inputIsPanorama: false,
@@ -72,9 +73,11 @@ const el = {
   sharpModeButton: $('sharpModeButton'),
   panoramaModeButton: $('panoramaModeButton'),
   pixalModeButton: $('pixalModeButton'),
+  sam3dModeButton: $('sam3dModeButton'),
   sharpModePanel: $('sharpModePanel'),
   panoramaModePanel: $('panoramaModePanel'),
   pixalModePanel: $('pixalModePanel'),
+  sam3dModePanel: $('sam3dModePanel'),
   modeSummary: $('modeSummary'),
   resultPanel: $('resultPanel'),
   viewerTitle: $('viewerTitle'),
@@ -101,6 +104,15 @@ const el = {
   pixalQualityHint: $('pixalQualityHint'),
   pixalRunButton: $('pixalRunButton'),
   pixalStatus: $('pixalStatus'),
+  sam3dBackendUrl: $('sam3dBackendUrl'),
+  sam3dSeed: $('sam3dSeed'),
+  sam3dMaskPath: $('sam3dMaskPath'),
+  chooseSam3DMask: $('chooseSam3DMask'),
+  clearSam3DMask: $('clearSam3DMask'),
+  sam3dCheckButton: $('sam3dCheckButton'),
+  sam3dGuideButton: $('sam3dGuideButton'),
+  sam3dRunButton: $('sam3dRunButton'),
+  sam3dStatus: $('sam3dStatus'),
   panoramaSideCount: $('panoramaSideCount'),
   panoramaAlignmentMode: $('panoramaAlignmentMode'),
   panoramaKeepIntermediates: $('panoramaKeepIntermediates'),
@@ -326,6 +338,9 @@ function updateProgressFromLog(line) {
   } else if (text.includes('running pixal3d')) {
     setProgress('busy');
     setProgressDetails('Running Pixal3D…');
+  } else if (text.includes('sam 3d objects')) {
+    setProgress('busy');
+    setProgressDetails('Running SAM 3D Objects…');
   } else if (text.includes('ply written') || text.includes('360 ply written') || text.includes('glb written') || text.includes('complete')) {
     state.longPhase.active = false;
     resetDownloadProgress();
@@ -343,6 +358,10 @@ function setBusy(busy) {
   el.runButton.disabled = busy;
   el.panoramaRunButton.disabled = busy;
   el.pixalRunButton.disabled = busy;
+  el.sam3dRunButton.disabled = busy;
+  el.sam3dCheckButton.disabled = busy;
+  el.chooseSam3DMask.disabled = busy;
+  el.clearSam3DMask.disabled = busy;
   el.cancelButton.disabled = !busy;
 }
 
@@ -352,18 +371,30 @@ function setMode(mode) {
   const isSharp = mode === 'sharp';
   const isPanorama = mode === 'panorama';
   const isPixal = mode === 'pixal';
+  const isSam3D = mode === 'sam3d';
   el.sharpModeButton.classList.toggle('active', isSharp);
   el.panoramaModeButton.classList.toggle('active', isPanorama);
   el.pixalModeButton.classList.toggle('active', isPixal);
+  el.sam3dModeButton.classList.toggle('active', isSam3D);
   el.sharpModePanel.classList.toggle('hidden', !isSharp);
   el.panoramaModePanel.classList.toggle('hidden', !isPanorama);
   el.pixalModePanel.classList.toggle('hidden', !isPixal);
-  el.sharpAdvancedPanel.classList.toggle('hidden', isPixal);
-  el.modeSummary.textContent = isSharp ? 'SHARP .PLY selected' : (isPanorama ? '360 panorama .PLY selected' : 'Pixal3D .GLB selected');
-  setStatus(isSharp ? 'SHARP will output a Gaussian splat .PLY.' : (isPanorama ? '360 mode will output a merged Gaussian splat .PLY.' : 'Pixal3D will output an experimental textured .GLB.'), 'busy');
+  el.sam3dModePanel.classList.toggle('hidden', !isSam3D);
+  el.sharpAdvancedPanel.classList.toggle('hidden', isPixal || isSam3D);
+  el.modeSummary.textContent = isSharp
+    ? 'SHARP .PLY selected'
+    : (isPanorama ? '360 panorama .PLY selected' : (isPixal ? 'Pixal3D .GLB selected' : 'SAM 3D Objects .GLB selected'));
+  setStatus(
+    isSharp
+      ? 'SHARP will output a Gaussian splat .PLY.'
+      : (isPanorama
+        ? '360 mode will output a merged Gaussian splat .PLY.'
+        : (isPixal ? 'Pixal3D will output an experimental textured .GLB.' : 'SAM 3D Objects will output a vertex-colored .GLB through a Linux backend.')),
+    'busy'
+  );
 }
 
-function showOutputPanel(kind) {
+function showOutputPanel(kind, title = '') {
   el.resultPanel.classList.remove('hidden');
   el.stageResizer.classList.remove('hidden');
   const isGlb = kind === 'glb';
@@ -373,7 +404,7 @@ function showOutputPanel(kind) {
   el.glbCanvas.classList.toggle('hidden', !isGlb);
   el.viewerHelp.classList.toggle('hidden', false);
   el.viewerPlaceholder.classList.add('hidden');
-  el.viewerTitle.textContent = isGlb ? 'Pixal3D GLB preview' : 'SHARP PLY preview';
+  el.viewerTitle.textContent = title || (isGlb ? 'GLB preview' : 'SHARP PLY preview');
   el.viewPly.classList.toggle('hidden', isGlb);
 }
 
@@ -389,6 +420,9 @@ function readOptions() {
     pixalQuality: el.pixalQuality ? el.pixalQuality.value : 'auto',
     pixalResolution: el.pixalResolution ? el.pixalResolution.value : 'auto',
     pixalFovDegrees: el.pixalFovDegrees && el.pixalFovDegrees.value !== '' ? Number(el.pixalFovDegrees.value) : null,
+    sam3dBackendUrl: el.sam3dBackendUrl ? el.sam3dBackendUrl.value.trim() : '',
+    sam3dSeed: el.sam3dSeed && el.sam3dSeed.value !== '' ? Number(el.sam3dSeed.value) : 42,
+    sam3dMaskPath: state.sam3dMaskPath,
     panoramaSideCount: el.panoramaSideCount.value,
     panoramaAlignmentMode: el.panoramaAlignmentMode.value,
     panoramaKeepIntermediates: !!el.panoramaKeepIntermediates.checked,
@@ -764,6 +798,82 @@ async function runPixal3D() {
   }
 }
 
+async function chooseSam3DMask() {
+  try {
+    const maskPath = await sharpSplat.selectSam3DMask();
+    if (!maskPath) return;
+    state.sam3dMaskPath = maskPath;
+    el.sam3dMaskPath.value = maskPath;
+    el.sam3dStatus.textContent = 'Mask selected. White/nonzero pixels will define the object.';
+  } catch (err) {
+    appendError('SAM 3D Objects mask selection failed', err);
+    el.sam3dStatus.textContent = 'Mask selection failed — see Runtime log.';
+  }
+}
+
+function clearSam3DMask() {
+  state.sam3dMaskPath = '';
+  el.sam3dMaskPath.value = '';
+  el.sam3dStatus.textContent = 'No separate mask. Input must be a PNG with transparent background.';
+}
+
+async function checkSam3D(showGood = true) {
+  el.sam3dStatus.textContent = 'Checking backend…';
+  try {
+    const status = await sharpSplat.checkSam3D(readOptions());
+    appendLog(`SAM 3D Objects backend: ${status.backendUrl}`);
+    appendLog(`SAM 3D Objects bridge: ${status.bridgeScript}`);
+    appendLog(`SAM 3D Objects upstream pin: ${status.upstreamSha}`);
+    if (status.ready) {
+      const gpu = status.health && status.health.gpu ? ` · ${status.health.gpu}` : '';
+      const vram = status.health && status.health.vram_gb ? ` · ${status.health.vram_gb}GB VRAM` : '';
+      el.sam3dStatus.textContent = `Backend ready${gpu}${vram}.`;
+      if (showGood) setStatus('SAM 3D Objects backend ready.', 'good');
+    } else {
+      el.sam3dStatus.textContent = `Backend unavailable: ${status.error || 'health check failed'}`;
+      if (showGood) setStatus('SAM 3D Objects backend unavailable — see setup guide and Runtime log.', 'bad');
+    }
+    return status;
+  } catch (err) {
+    appendError('SAM 3D Objects backend check failed', err);
+    el.sam3dStatus.textContent = 'Backend check failed — see Runtime log.';
+    if (showGood) setStatus('SAM 3D Objects backend check failed.', 'bad');
+    return null;
+  }
+}
+
+async function runSam3D() {
+  resetDownloadProgress();
+  if (!state.inputPath) { setStatus('Choose an input frame first.', 'bad'); return; }
+  if (!state.sam3dMaskPath && !state.inputPath.toLowerCase().endsWith('.png')) {
+    setStatus('Choose a mask, or use a transparent PNG input.', 'bad');
+    return;
+  }
+  if (!state.outputFolder) { await chooseOutputFolder(); if (!state.outputFolder) return; }
+  el.resultActions.classList.add('hidden');
+  state.outputPly = '';
+  state.outputFile = '';
+  setProgress('busy');
+  setBusy(true);
+  setStatus('Running SAM 3D Objects…', 'busy');
+  try {
+    const result = await sharpSplat.runSam3D(readOptions());
+    state.outputFile = result.outputGlb;
+    el.resultActions.classList.remove('hidden');
+    showOutputPanel('glb', 'SAM 3D Objects GLB preview');
+    const size = result.sizeBytes ? ` • ${humanBytes(result.sizeBytes)}` : '';
+    setStatus(`SAM 3D Objects GLB done: ${result.outputGlb}${size}.`, 'good');
+    setProgress('done');
+    await loadGlbViewer(result.outputGlb);
+  } catch (err) {
+    appendError('SAM 3D Objects failed', err);
+    setStatus('SAM 3D Objects failed — see Runtime log.', 'bad');
+    el.sam3dStatus.textContent = 'Generation failed — see Runtime log.';
+  } finally {
+    setBusy(false);
+  }
+}
+
 async function cancelJob() {
   await sharpSplat.cancelJob();
   setBusy(false);
@@ -831,12 +941,18 @@ el.chooseOutputFolder.addEventListener('click', chooseOutputFolder);
 el.sharpModeButton.addEventListener('click', () => setMode('sharp'));
 el.panoramaModeButton.addEventListener('click', () => setMode('panorama'));
 el.pixalModeButton.addEventListener('click', () => setMode('pixal'));
+el.sam3dModeButton.addEventListener('click', () => setMode('sam3d'));
 el.runButton.addEventListener('click', runSharp);
 el.panoramaRunButton.addEventListener('click', runPanorama360);
 el.panoramaAlignmentMode.addEventListener('change', updatePanoramaStatusHint);
 el.cancelButton.addEventListener('click', cancelJob);
 el.copyLogButton.addEventListener('click', copyLog);
 el.pixalRunButton.addEventListener('click', runPixal3D);
+el.chooseSam3DMask.addEventListener('click', chooseSam3DMask);
+el.clearSam3DMask.addEventListener('click', clearSam3DMask);
+el.sam3dCheckButton.addEventListener('click', () => checkSam3D(true));
+el.sam3dGuideButton.addEventListener('click', () => sharpSplat.openSam3DGuide().catch((err) => appendError('Could not open SAM 3D Objects setup guide', err)));
+el.sam3dRunButton.addEventListener('click', runSam3D);
 el.pixalQuality.addEventListener('change', () => refreshHardwareStatus());
 el.pixalResolution.addEventListener('change', () => refreshHardwareStatus());
 el.refreshHardware.addEventListener('click', () => refreshHardwareStatus());

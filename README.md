@@ -12,6 +12,7 @@ This is not an Apple product, is not affiliated with Apple, and is not endorsed 
 - EXR path: converts ACEScg/linear EXR to tone-mapped sRGB PNG for SHARP inference while preserving the original EXR
 - Runs Apple SHARP via `sharp predict -i <input> -o <folder>`
 - Optional Pixal3D mode creates a textured `.glb` with Standard, Low VRAM, and 8GB Experimental GPU profiles
+- Optional SAM 3D Objects mode connects to an official Linux 32GB+ GPU environment and creates a masked-object vertex-colored `.glb`
 - Pixal3D exposes 1024/1536 generation resolution and an optional manual camera FOV
 - Detects stitched 2:1 PNG/JPEG panoramas and reveals a 360 SHARP mode
 - 360 mode clones the SHARP_360_to_Splat backend on first use, extracts perspective views, runs SHARP per view, aligns them, and writes a merged `.ply`
@@ -52,6 +53,7 @@ Apple SHARP source is bundled under the app's `resources/ml-sharp` folder. The P
 - Bundled `uv` Windows binaries under `vendor/uv` come from Astral's `uv` project and remain under upstream uv licensing.
 - See `NOTICE` for attribution and no-endorsement notes.
 - Optional TencentARC/Pixal3D source and official weights are downloaded at runtime under MIT; their third-party runtime components keep separate terms. See `NOTICE` and `EXPERIMENTAL_PIXAL3D.md`.
+- Optional Meta SAM 3D Objects code/checkpoints use Meta's SAM License and remain on a separately configured Linux backend. See `NOTICE` and `SAM3D_OBJECTS.md`.
 
 ## Notes
 
@@ -61,4 +63,5 @@ Apple SHARP source is bundled under the app's `resources/ml-sharp` folder. The P
 - The built-in `.ply` viewer uses the official PlayCanvas SuperSplat viewer path first, with the older Babylon/point preview kept as a fallback.
 - The output `.ply` is Apple SHARP's own 3DGS PLY, not the fallback textured-card approximation.
 - Pixal3D Standard is documented upstream at roughly 18GB peak VRAM; Low VRAM is roughly 10–12GB. The app's 8GB profile remains experimental and may run out of memory.
+- SAM 3D Objects officially requires Linux x64 and at least 32GB NVIDIA VRAM. Upstream provides no low-memory fallback; Windows connects through WSL2 or a remote/private Linux backend.
 - GitHub auto-updates require the published update assets (`latest.yml`, installer, blockmap) to be reachable by the installed app. Do not embed a private GitHub token in the app.
