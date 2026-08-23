@@ -63,6 +63,7 @@ function createWindow() {
     minWidth: 900,
     minHeight: 640,
     backgroundColor: '#101217',
+    icon: path.join(__dirname, 'renderer', 'assets', 'app-icon.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       nodeIntegration: false,

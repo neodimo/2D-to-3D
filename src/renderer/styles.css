@@ -42,7 +42,8 @@ li + li { margin-top: 0.35rem; }
 
 .appHeader { height: 78px; display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 1rem 1.25rem 0.7rem; background: #18191b; border-bottom: 1px solid var(--line-soft); }
 .brandBlock { display: flex; align-items: center; gap: 0.8rem; min-width: 0; }
-.brandMark { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px; background: #242529; border: 1px solid rgba(238, 126, 48, 0.45); color: var(--accent); font-weight: 900; }
+.brandMark { width: 42px; height: 42px; display: grid; place-items: center; flex: 0 0 auto; border-radius: 14px; background: #242529; border: 1px solid rgba(238, 126, 48, 0.45); overflow: hidden; }
+.brandMark img { display: block; width: 100%; height: 100%; object-fit: cover; }
 .eyebrow { color: var(--accent); text-transform: uppercase; letter-spacing: 0.16em; font-size: 0.68rem; font-weight: 800; margin-bottom: 0.24rem; }
 .appVersion { color: #d5c7b5; font-size: 0.76rem; font-weight: 800; vertical-align: middle; letter-spacing: 0; }
 .headerActions { display: flex; justify-content: flex-end; align-items: center; gap: 0.48rem; min-width: 0; }

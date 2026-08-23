@@ -19,6 +19,8 @@ const sam3dBridge = read('scripts/sam3d_objects_server.py');
 const sam3dDocs = read('SAM3D_OBJECTS.md');
 const notice = read('NOTICE');
 const workflow = read('.github/workflows/windows-release.yml');
+const iconSource = path.join(root, 'design', 'icon-concepts', 'v001', 'option-a-folding-plane.png');
+const rendererIcon = path.join(root, 'src', 'renderer', 'assets', 'app-icon.png');
 
 const failures = [];
 
@@ -33,9 +35,17 @@ function includesAll(label, text, needles) {
 }
 
 check('package version is semver', /^\d+\.\d+\.\d+$/.test(pkg.version), pkg.version);
+check('selected app icon source exists', fs.existsSync(iconSource));
+check('renderer app icon exists', fs.existsSync(rendererIcon));
+check('Windows installer icon is configured', pkg.build?.win?.icon === 'build/icon.ico');
+check('Windows packaging regenerates the icon', pkg.scripts?.['pack:win-folder']?.startsWith('npm run build:icon && '));
+check('Windows installer build regenerates the icon', pkg.scripts?.['dist:win']?.startsWith('npm run build:icon && '));
 
 includesAll('header version badge contract', html, [
   'id="appVersion"',
+]);
+includesAll('app icon brand contract', html, [
+  '<img src="assets/app-icon.png" alt="" />',
 ]);
 check('header version badge has visible semver fallback', /id="appVersion"[^>]*>v\d+\.\d+\.\d+</.test(html));
 check('header version fallback matches package version', html.includes(`id="appVersion" class="appVersion">v${pkg.version}</span>`));
@@ -122,6 +132,7 @@ includesAll('preload SAM 3D Objects bridge', preload, [
 includesAll('silent updater contract', main, [
   "ipcMain.handle('get-app-version'",
   'autoUpdater.quitAndInstall(true, true)',
+  "icon: path.join(__dirname, 'renderer', 'assets', 'app-icon.png')",
 ]);
 check('installer UI updater regression stays blocked', !main.includes('autoUpdater.quitAndInstall(false, true)'));
 

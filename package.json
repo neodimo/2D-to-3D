@@ -8,6 +8,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
+    "build:icon": "node scripts/build-icon.cjs",
     "smoke": "node scripts/smoke-test.cjs",
     "regression": "node scripts/regression-test.cjs",
     "test:pixal3d": "node scripts/pixal3d-integration-test.cjs",
@@ -16,9 +17,9 @@
     "qa": "npm run smoke && npm run regression && npm run test:pixal3d && npm run test:sam3d",
     "gate:release:prebuild": "node scripts/release-gate.cjs prebuild",
     "gate:release:postbuild": "node scripts/release-gate.cjs postbuild",
-    "pack:win-folder": "electron-packager . 2D-to-3D --platform=win32 --arch=x64 --out=dist --overwrite --asar --prune=true --extra-resource=vendor/ml-sharp --extra-resource=vendor/uv --extra-resource=scripts/infinidepth_360_bridge.py --extra-resource=scripts/sam3d_objects_server.py --extra-resource=SAM3D_OBJECTS.md --ignore='^/dist($|/)' --ignore='^/runtime($|/)' --ignore='^/sharp-runtime($|/)' --ignore='^/test-output($|/)' --ignore='^/vendor/ml-sharp($|/)' --ignore='^/vendor/uv($|/)'",
-    "dist:win": "electron-builder --win nsis --x64 --publish never",
-    "dist:win:publish": "electron-builder --win nsis --x64 --publish always"
+    "pack:win-folder": "npm run build:icon && electron-packager . 2D-to-3D --platform=win32 --arch=x64 --out=dist --overwrite --asar --prune=true --icon=build/icon.ico --extra-resource=vendor/ml-sharp --extra-resource=vendor/uv --extra-resource=scripts/infinidepth_360_bridge.py --extra-resource=scripts/sam3d_objects_server.py --extra-resource=SAM3D_OBJECTS.md --ignore='^/dist($|/)' --ignore='^/runtime($|/)' --ignore='^/sharp-runtime($|/)' --ignore='^/test-output($|/)' --ignore='^/vendor/ml-sharp($|/)' --ignore='^/vendor/uv($|/)'",
+    "dist:win": "npm run build:icon && electron-builder --win nsis --x64 --publish never",
+    "dist:win:publish": "npm run build:icon && electron-builder --win nsis --x64 --publish always"
   },
   "dependencies": {
     "@playcanvas/supersplat-viewer": "^1.23.1",
@@ -74,6 +75,7 @@
       }
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis"
       ],
